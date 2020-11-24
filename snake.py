@@ -4,7 +4,6 @@ from pynput import keyboard
 import brain
 import tensorflow as tf
 
-# Imagine if the red dot had its own algorithm that allows it to escape the snake ! Wow
 
 window_size = brain.grid_size * brain.grid_count
 my_font = "Courier 15 bold"

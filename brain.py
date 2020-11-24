@@ -1,9 +1,7 @@
 import random
-import keras.backend as K
 import keras.models
 from keras.layers import Dense
 import numpy as np
-import time
 
 back_color = "#171717"
 back_color_2 = "#3c3c3c"
@@ -141,34 +139,23 @@ class NNet:
         self.direction = g
 
     def mutate(self, rate):
-        # first itterate through the layers
         for j, layer in enumerate(self.net.layers):
             new_weights_for_layer = []
-            # each layer has 2 matrizes, one for connection weights and one for biases
-            # then itterate though each matrix
-
             for weight_array in layer.get_weights():
-                # save their shape
                 save_shape = weight_array.shape
-                # reshape them to one dimension
                 one_dim_weight = weight_array.reshape(-1)
 
                 for i, weight in enumerate(one_dim_weight):
-                    # mutate them like i want
                     if random.uniform(0, 1) <= rate:
-                        # maybe dont use a complete new weigh, but rather just change it a bit
                         one_dim_weight[i] += random.uniform(-0.3, 0.3)
                         if one_dim_weight[i] < -1:
                             one_dim_weight[i] = -1
                         elif one_dim_weight[i] > 1:
                             one_dim_weight[i] = 1
 
-                # reshape them back to the original form
                 new_weight_array = one_dim_weight.reshape(save_shape)
-                # save them to the weight list for the layer
                 new_weights_for_layer.append(new_weight_array)
 
-            # set the new weight list for each layer
             self.net.layers[j].set_weights(new_weights_for_layer)
 
     def create_elements(self):
