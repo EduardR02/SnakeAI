@@ -2,14 +2,15 @@ import random
 import keras.models
 from keras.layers import Dense
 import numpy as np
+import keras.backend as K
 
 back_color = "#171717"
 back_color_2 = "#3c3c3c"
 snake_Color = "#4ca3dd"
 apple_color = "#ff4040"
-grid_size = 50
+grid_size = 30
 blob_size = grid_size - 2
-grid_count = 10
+grid_count = 16
 start_size = 5
 apple_boost = 1
 start_direction = 0
@@ -17,8 +18,8 @@ start_direction = 0
 
 def create_model():
     model = keras.models.Sequential()
-    model.add(Dense(20, activation="relu", input_dim = 13))
-    model.add(Dense(15, activation="relu"))
+    model.add(Dense(20, activation="relu", input_dim = 15))
+    model.add(Dense(10, activation="relu"))
     model.add(Dense(4, activation="softmax"))
     return model
 
@@ -50,24 +51,16 @@ class NNet:
     def update_fitness(self):
         head_x = self.my_list[0].get_x()
         head_y = self.my_list[0].get_y()
-        x = head_x - self.my_list[1].get_x()
-        y = head_y - self.my_list[1].get_y()
         food_x = self.food.get_x()
         food_y = self.food.get_y()
-        if x != 0:
-            if x > 0:
-                if head_x <= food_x:
-                    self.fitness += 5
-            else:
-                if head_x >= food_x:
-                    self.fitness += 5
-        else:
-            if y > 0:
-                if head_y <= food_y:
-                    self.fitness += 5
-            else:
-                if head_y >= food_y:
-                    self.fitness += 5
+        if self.current_direction == 0 and head_x - food_x > 0:
+            self.fitness += 1
+        elif self.current_direction == 1 and food_y - head_y > 0:
+            self.fitness += 1
+        elif self.current_direction == 2 and food_x - head_x > 0:
+            self.fitness += 1
+        elif self.current_direction == 3 and head_y - food_y > 0:
+            self.fitness += 1
 
     def update(self):
         if not self.dead:
@@ -125,16 +118,18 @@ class NNet:
 
     def get_inputs(self):
         self.inputs.clear()
-        self.inputs.append((self.food.get_x() - self.my_list[0].get_x()) / (grid_count - 1))
-        self.inputs.append((self.food.get_y() - self.my_list[0].get_y()) / (grid_count - 1))
+        self.inputs.append(abs((self.food.get_x() - self.my_list[0].get_x()) / (grid_count - 1)))
+        self.inputs.append(abs((self.food.get_y() - self.my_list[0].get_y()) / (grid_count - 1)))
         self.inputs.append(self.my_list[0].get_x() / (grid_count - 1))
         self.inputs.append(self.my_list[0].get_y() / (grid_count - 1))
+        self.inputs.append(self.food.get_x() / (grid_count - 1))
+        self.inputs.append(self.food.get_y() / (grid_count - 1))
         self.inputs.append(self.current_direction / 3)
         self.get_inputs_around_head()
 
     def think(self):
         self.get_inputs()
-        temp = np.asarray(self.inputs).reshape(-1, 13)
+        temp = np.asarray(self.inputs).reshape(-1, 15)
         g = np.argmax(self.net(temp, training = False), axis=-1)
         self.direction = g
 
@@ -147,7 +142,7 @@ class NNet:
 
                 for i, weight in enumerate(one_dim_weight):
                     if random.uniform(0, 1) <= rate:
-                        one_dim_weight[i] += random.uniform(-0.3, 0.3)
+                        one_dim_weight[i] += random.gauss(0, 1) / 5
                         if one_dim_weight[i] < -1:
                             one_dim_weight[i] = -1
                         elif one_dim_weight[i] > 1:
@@ -185,9 +180,10 @@ class NNet:
                 if self.my_list[0].get_x() == self.my_list[i + 1].get_x() and \
                         self.my_list[0].get_y() == self.my_list[i + 1].get_y():
                     self.dead = True
-        if self.step_counter > grid_count * grid_count * 2:
+        if self.step_counter > grid_count * grid_count:
             self.dead = True
-            self.fitness = 0
+            if self.score == 0:
+                self.fitness = self.fitness // 2
         if self.dead:
             if self.fitness < 0:
                 self.fitness = 0

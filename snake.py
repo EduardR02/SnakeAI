@@ -4,13 +4,13 @@ from pynput import keyboard
 import brain
 import tensorflow as tf
 
-
 window_size = brain.grid_size * brain.grid_count
 my_font = "Courier 15 bold"
 ms_time = 1
 draw_for_update = 10
-population_size = 250 * 2
+population_size = 500 * 2
 counter = 0
+mutation_rate = 0.05
 counter_2 = 0
 all_snakes = []
 saved_all_snakes = []
@@ -18,7 +18,7 @@ gen = 1
 best_1 = best_2 = best_of_gen_1 = best_of_gen_2 = None
 all_fitness = 0
 key_toggle = True
-models_file_path = "models/"   # folder from which all models load and save
+models_file_path = "models/"  # folder from which all models load and save
 load_m = False
 no_graphics = False
 
@@ -61,7 +61,7 @@ def key_control(key):
             ms_time = 0
 
 
-def train(loaded = False):
+def train(loaded=False):
     global counter, best_1, best_2
     if gen == 1 and not loaded:
         for i in range(population_size):
@@ -116,8 +116,12 @@ def load_models():
         all_fitness, load_m, ms_time, draw_for_update
     print("loading...")
     for i in range(population_size):
-        all_snakes.append(brain.NNet(brain.keras.models.load_model
-                                     (f"{models_file_path}model_nr_{i}.h5", compile=False)))
+        try:
+            all_snakes.append(brain.NNet(brain.keras.models.load_model
+                                         (f"{models_file_path}model_nr_{i}.h5", compile=False)))
+        except OSError:
+            all_snakes.append(
+                brain.NNet(brain.keras.models.load_model(f"{models_file_path}model_nr_best_1.h5", compile=False)))
 
     best_1 = brain.NNet(brain.keras.models.load_model(f"{models_file_path}model_nr_best_1.h5", compile=False))
     best_2 = brain.NNet(brain.keras.models.load_model(f"{models_file_path}model_nr_best_2.h5", compile=False))
@@ -180,7 +184,7 @@ def update(c1, r1, l1):
         load_level(c1, r1, l1)
 
 
-def prep_next_gen(c1 = None, r1 = None, l1 = None):
+def prep_next_gen(c1=None, r1=None, l1=None):
     global gen, best_2, best_1
     brain.K.clear_session()
     if load_m:
@@ -220,7 +224,7 @@ def pick_next_gen():
     for i in range((population_size // 2) - 2):
         pick_one()
         # pick_one_2(i)
-    crossover((population_size//2) - 2)
+    crossover((population_size // 2) - 2, 0.5)
     saved_all_snakes.clear()
 
 
@@ -252,19 +256,23 @@ def calc_fitness():
           best_of_gen_2.get_score(), ",", best_of_gen_2.get_fitness())
 
 
-def crossover(how_many):
-    global population_size
+def crossover(how_many, bias):
+    global population_size, best_1, best_2
 
     if len(saved_all_snakes) != 0:
         parents = []
-        p1 = p2 = None
-        for i in range(population_size//12):                 # magic number
-            parents.append(saved_all_snakes[-(i + 1)])
+        for i in range(population_size // 12):  # magic number
+            it = saved_all_snakes[-(i + 1)]
+            if it.get_fitness() == 0:
+                if random.uniform(0, 1) <= 0.7:
+                    it = best_1
+                else:
+                    it = best_2
+            parents.append(it)
         for r in range(how_many):
             child = brain.NNet()
-            for j in range(population_size // 2):
-                p1 = parents[random.randint(0, len(parents) - 1)]
-                p2 = parents[random.randint(0, len(parents) - 1)]
+            p1 = parents[random.randint(0, len(parents) - 1)]
+            p2 = parents[random.randint(0, len(parents) - 1)]
 
             for k, layer in enumerate(p1.get_net().layers):
                 child_weights = []
@@ -274,16 +282,13 @@ def crossover(how_many):
                     weight_array2 = brain.np.asarray(p2.get_net().layers[k].get_weights()[p])
                     reshaped_weights = weight_array.reshape(-1)
                     reshaped_weights2 = weight_array2.reshape(-1)
-
                     for n in range(len(reshaped_weights)):
-
-                        if random.uniform(0, 1) < 0.5:
+                        if random.uniform(0, 1) <= bias:
                             reshaped_weights[n] = reshaped_weights2[n]
 
                     new_weights = reshaped_weights.reshape(save_shape)
                     child_weights.append(new_weights)
                 child.net.layers[k].set_weights(child_weights)
-            child.mutate(0.05)
             all_snakes.append(child)
     else:
         for i in range(how_many):
@@ -294,7 +299,7 @@ def pick_one_2(i):
     if len(saved_all_snakes) != 0:
         temp = saved_all_snakes[-(i + 1)]
         child = brain.NNet(temp.get_net())
-        child.mutate(0.1)
+        child.mutate(mutation_rate)
         all_snakes.append(child)
     else:
         all_snakes.append(brain.NNet())
@@ -325,9 +330,9 @@ def pick_one():
             if temp.get_fitness() == 0:
                 pick_one()
                 return
-
-        child = brain.NNet(temp.get_net())
-        child.mutate(0.3)
+        net = temp.get_net()
+        child = brain.NNet(net)
+        child.mutate(mutation_rate)
         all_snakes.append(child)
 
     else:
