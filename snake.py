@@ -3,6 +3,7 @@ import tkinter as tk
 from pynput import keyboard
 import brain
 import tensorflow as tf
+import matplotlib.pyplot as plt
 
 window_size = brain.grid_size * brain.grid_count
 my_font = "Courier 15 bold"
@@ -10,8 +11,8 @@ ms_time = 1
 draw_for_update = 10
 population_size = 1000 * 2
 counter = 0
-mutation_rate = 0.05
-mutation_rate2 = 0.9
+mutation_rate = 0.1
+mutation_rate2 = 1
 counter_2 = 0
 all_snakes = []
 saved_all_snakes = []
@@ -20,8 +21,10 @@ best_1 = best_2 = best_of_gen_1 = best_of_gen_2 = None
 all_fitness = 0
 key_toggle = True
 models_file_path = "models/"  # folder from which all models load and save
+graph_file_name = "my_graph_2.png"
 load_m = False
 no_graphics = False
+graph_best_gen = []
 
 
 def key_control(key):
@@ -60,6 +63,16 @@ def key_control(key):
             save_models()
         if ms_time < 0:
             ms_time = 0
+
+
+def save_graph():
+    plt.plot(graph_best_gen, color="#61AFEF")
+    plt.xlabel('Generation')
+    plt.ylabel('Score')
+    plt.title('Snake Neural Network')
+    ax = plt.gca()
+    ax.set_facecolor('#2b2b2b')
+    plt.savefig(graph_file_name, bbox_inches="tight")
 
 
 def train(loaded=False):
@@ -114,7 +127,7 @@ def save_models():
 
 def load_models():
     global best_1, best_2, best_of_gen_1, best_of_gen_2, gen, counter, counter_2, \
-        all_fitness, load_m, ms_time, draw_for_update
+        all_fitness, load_m, ms_time, draw_for_update, graph_best_gen
     print("loading...")
     for i in range(population_size):
         try:
@@ -137,6 +150,7 @@ def load_models():
     load_m = False
     ms_time = 100
     draw_for_update = 1
+    graph_best_gen.clear()
     print("models loaded")
 
 
@@ -203,6 +217,7 @@ def prep_next_gen(c1=None, r1=None, l1=None):
         mergesort(saved_all_snakes)
         calc_fitness()
         pick_next_gen()
+        save_graph()
         gen += 1
         if no_graphics:
             train()
@@ -237,7 +252,7 @@ def copy_snake(snake):
 
 
 def calc_fitness():
-    global best_1, best_2, all_fitness, best_of_gen_1, best_of_gen_2, saved_all_snakes
+    global best_1, best_2, all_fitness, best_of_gen_1, best_of_gen_2, saved_all_snakes, graph_best_gen
     all_fitness = 0
     for i in saved_all_snakes:
         all_fitness += i.get_fitness()
@@ -251,6 +266,7 @@ def calc_fitness():
         best_2 = copy_snake(best_of_gen_1)
     if best_of_gen_2.get_fitness() > best_2.get_fitness():
         best_2 = copy_snake(best_of_gen_2)
+    graph_best_gen.append(best_of_gen_1.get_score())
     print("Best:", best_1.get_score(), ",", best_1.get_fitness(), ";", best_2.get_score(), ",", best_2.get_fitness())
     print(f"Best of Gen {gen}:", best_of_gen_1.get_score(), ",", best_of_gen_1.get_fitness(), ";",
           best_of_gen_2.get_score(), ",", best_of_gen_2.get_fitness())
