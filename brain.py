@@ -9,26 +9,37 @@ back_color_2 = "#3c3c3c"
 snake_Color = "#4ca3dd"
 apple_color = "#ff4040"
 grid_size = 30
-blob_size = grid_size - 2
-grid_count = 16
+blob_size = grid_size - 2  # should to be even
+grid_count = 30
 start_size = 5
 apple_boost = 1
 start_direction = 0
+input_size = 24
 
 
 def create_model():
     model = keras.models.Sequential()
-    model.add(Dense(20, activation="relu", input_dim = 15))
-    model.add(Dense(10, activation="relu"))
-    model.add(Dense(4, activation="softmax"))
+    initializer = keras.initializers.RandomNormal(mean=0., stddev=1.)
+    model.add(Dense(16, activation="relu", input_dim=input_size, use_bias=True,
+                    kernel_initializer=initializer, bias_initializer=initializer))
+    model.add(Dense(16, activation="relu", use_bias=True,
+                    kernel_initializer=initializer, bias_initializer=initializer))
+    model.add(Dense(4, activation="softmax", use_bias=False,
+                    kernel_initializer=initializer))
     return model
+
+
+def wall_collision(x, y):
+    if 0 <= x < grid_count and 0 <= y < grid_count:
+        return False
+    return True
 
 
 class NNet:
 
-    def __init__(self, net = None):
+    def __init__(self, net=None):
         self.food_eaten = False
-        self.my_list = []
+        self.snake_body = []
         self.create_elements()
         self.food = self.create_food()
         self.dead = False
@@ -37,30 +48,28 @@ class NNet:
         self.score = 0
         self.fitness = 0
         self.step_counter = 0
-        self.inputs = []
+        self.inputs = np.zeros(input_size)
         if net is None:
             self.net = create_model()
         else:
             self.net = create_model()
             self.net.set_weights(net.get_weights())
-            """self.net = keras.models.clone_model(net)
-            self.net.build((None, 13))  # replace 10 with number of variables in input layer
-            self.net.compile(optimizer='adam', loss='categorical_crossentropy')
-            self.net.set_weights(net.get_weights())"""
 
     def update_fitness(self):
-        head_x = self.my_list[0].get_x()
-        head_y = self.my_list[0].get_y()
+        head_x = self.snake_body[0].get_x()
+        head_y = self.snake_body[0].get_y()
         food_x = self.food.get_x()
         food_y = self.food.get_y()
-        if self.current_direction == 0 and head_x - food_x > 0:
+        if self.current_direction == 0 and head_x > food_x:
             self.fitness += 1
-        elif self.current_direction == 1 and food_y - head_y > 0:
+        elif self.current_direction == 1 and head_y > food_y:
             self.fitness += 1
-        elif self.current_direction == 2 and food_x - head_x > 0:
+        elif self.current_direction == 2 and food_x > head_x:
             self.fitness += 1
-        elif self.current_direction == 3 and head_y - food_y > 0:
+        elif self.current_direction == 3 and food_y > head_y:
             self.fitness += 1
+        else:
+            self.fitness -= 1
 
     def update(self):
         if not self.dead:
@@ -68,15 +77,15 @@ class NNet:
             if self.step_counter % 10 == 0:
                 self.fitness += 1
 
-            for i in range(len(self.my_list) - 1, 0, - 1):
-                self.my_list[i].set_x(self.my_list[i - 1].get_x())
-                self.my_list[i].set_y(self.my_list[i - 1].get_y())
+            for i in range(len(self.snake_body) - 1, 0, - 1):
+                self.snake_body[i].set_x(self.snake_body[i - 1].get_x())
+                self.snake_body[i].set_y(self.snake_body[i - 1].get_y())
 
             self.update_head_pos()
             self.update_fitness()
             self.dead_check()
 
-            if self.food.get_x() == self.my_list[0].get_x() and self.food.get_y() == self.my_list[0].get_y():
+            if self.food_collision(self.snake_body[0].get_x(), self.snake_body[0].get_y()):
                 self.add_elements()
                 self.food_eaten = True
                 self.step_counter = 0
@@ -86,105 +95,133 @@ class NNet:
     def get_line(self, x):
         pass
 
-    def get_inputs_around_head(self):
-        body_x = []
-        body_y = []
-        for i in range(len(self.my_list) - 1):
-            body_x.append(self.my_list[i + 1].get_x())
-            body_y.append(self.my_list[i + 1].get_y())
+    def get_inputs_around_head(self, index):
+        temp = 0
         for i in range(3):
             for j in range(3):
-                if i == 1 and j == 1:
+                if i == j == 1:
+                    temp = 1
                     continue
                 else:
-                    x = self.my_list[0].get_x() + i - 1
-                    y = self.my_list[0].get_y() + j - 1
-                    if x == self.food.get_x() and y == self.food.get_y():
-                        self.inputs.append(1)
-                    elif x < 0 or x > grid_count - 1 or y < 0 or y > grid_count - 1:
-                        self.inputs.append(-1)
+                    x = self.snake_body[0].get_x() + i - 1
+                    y = self.snake_body[0].get_y() + j - 1
+                    if self.food_collision(x, y):
+                        self.inputs[i * 3 + j - temp + index] = 1
+                    elif wall_collision(x, y) or self.body_collision_excluding_head(x, y):
+                        self.inputs[i * 3 + j - temp + index] = -1
                     else:
-                        f = False
-                        for k in range(len(body_x)):
-                            if x == body_x[k] and y == body_y[k]:
-                                self.inputs.append(-1)
-                                f = True
-                                break
-                        if not f:
-                            self.inputs.append(0)
+                        self.inputs[i * 3 + j - temp + index] = 0
 
     def get_net(self):
         return self.net
 
+    def get_direction_input(self, index):
+        for i in range(4):
+            if self.current_direction == i:
+                self.inputs[index + i] = 1
+            else:
+                self.inputs[index + i] = 0
+
+    def food_collision(self, x, y):
+        if self.food.get_x() == x and self.food.get_y() == y:
+            return True
+        return False
+
+    def body_collision_excluding_head(self, x, y):
+        for i in range(1, len(self.snake_body)):
+            if self.snake_body[i].get_x() == x and self.snake_body[i].get_y() == y:
+                return True
+        return False
+
+    def add_to_inputs_consistent(self, food, body, distance, index):
+        self.inputs[index] = food
+        self.inputs[index + 1] = body
+        self.inputs[index + 2] = distance
+
+    def look_in_direction(self, xx, yy, index):
+        x = self.snake_body[0].get_x() + xx
+        y = self.snake_body[0].get_y() + yy
+        distance = 1
+        while not wall_collision(x, y):
+            if self.food_collision(x, y):
+                self.add_to_inputs_consistent(1, 0, 1 / distance, index)
+                return
+            if self.body_collision_excluding_head(x, y):
+                self.add_to_inputs_consistent(0, 1, 1 / distance, index)
+                return
+            distance += 1
+            x += xx
+            y += yy
+        self.add_to_inputs_consistent(0, 0, 1 / distance, index)
+
+    def surroundings_to_inputs(self, index):
+        temp = 0
+        for i in range(3):
+            for j in range(3):
+                if i == j == 1:
+                    temp = 1
+                    continue
+                self.look_in_direction(i - 1, j - 1, (i * 3 + j - temp) * 3 + index)
+
     def get_inputs(self):
-        self.inputs.clear()
-        self.inputs.append(abs((self.food.get_x() - self.my_list[0].get_x()) / (grid_count - 1)))
-        self.inputs.append(abs((self.food.get_y() - self.my_list[0].get_y()) / (grid_count - 1)))
-        self.inputs.append(self.my_list[0].get_x() / (grid_count - 1))
-        self.inputs.append(self.my_list[0].get_y() / (grid_count - 1))
-        self.inputs.append(self.food.get_x() / (grid_count - 1))
-        self.inputs.append(self.food.get_y() / (grid_count - 1))
-        self.inputs.append(self.current_direction / 3)
-        self.get_inputs_around_head()
+        self.surroundings_to_inputs(0)  # 24 inputs
 
     def think(self):
         self.get_inputs()
-        temp = np.asarray(self.inputs).reshape(-1, 15)
-        g = np.argmax(self.net(temp, training = False), axis=-1)
+        temp = np.asarray(self.inputs).reshape(-1, input_size)
+        g = np.argmax(self.net(temp), axis=-1)[0]
         self.direction = g
 
-    def mutate(self, rate):
-        for j, layer in enumerate(self.net.layers):
-            new_weights_for_layer = []
-            for weight_array in layer.get_weights():
-                save_shape = weight_array.shape
-                one_dim_weight = weight_array.reshape(-1)
+    def mutate(self, rate, mutate_at_all):
+        if random.uniform(0, 1) <= mutate_at_all:
+            for j, layer in enumerate(self.net.layers):
+                new_weights_for_layer = []
+                for weight_array in layer.get_weights():
+                    save_shape = weight_array.shape
+                    one_dim_weight = weight_array.reshape(-1)
 
-                for i, weight in enumerate(one_dim_weight):
-                    if random.uniform(0, 1) <= rate:
-                        one_dim_weight[i] += random.gauss(0, 1) / 5
-                        if one_dim_weight[i] < -1:
-                            one_dim_weight[i] = -1
-                        elif one_dim_weight[i] > 1:
-                            one_dim_weight[i] = 1
+                    for i, weight in enumerate(one_dim_weight):
+                        if random.uniform(0, 1) <= rate:
+                            one_dim_weight[i] += random.gauss(0, 1) / 5
+                            if one_dim_weight[i] < -1:
+                                one_dim_weight[i] = -1
+                            elif one_dim_weight[i] > 1:
+                                one_dim_weight[i] = 1
 
-                new_weight_array = one_dim_weight.reshape(save_shape)
-                new_weights_for_layer.append(new_weight_array)
+                    new_weight_array = one_dim_weight.reshape(save_shape)
+                    new_weights_for_layer.append(new_weight_array)
 
-            self.net.layers[j].set_weights(new_weights_for_layer)
+                self.net.layers[j].set_weights(new_weights_for_layer)
 
     def create_elements(self):
         global start_size
         if start_size == 0:
             start_size = 1
         for i in range(start_size):
-            self.create_element(grid_count / 2 + i, grid_count / 2)
+            self.create_element(grid_count // 2 + i, grid_count // 2)
 
     def create_element(self, posx, posy):
         blob1 = Blob(posx, posy, False)
-        self.my_list.append(blob1)
+        self.snake_body.append(blob1)
 
     def add_elements(self):
-        if len(self.my_list) != 0:
-            temp = self.my_list[len(self.my_list) - 1]
+        if len(self.snake_body) != 0:
+            temp = self.snake_body[len(self.snake_body) - 1]
             for i in range(apple_boost):
                 self.create_element(temp.get_x(), temp.get_y())
 
     def dead_check(self):
-        x = self.my_list[0].get_x()
-        y = self.my_list[0].get_y()
-        if x < 0 or x > grid_count - 1 or y < 0 or y > grid_count - 1:
+        x = self.snake_body[0].get_x()
+        y = self.snake_body[0].get_y()
+        if wall_collision(x, y):
             self.dead = True
-        else:
-            for i in range(len(self.my_list) - 1):
-                if self.my_list[0].get_x() == self.my_list[i + 1].get_x() and \
-                        self.my_list[0].get_y() == self.my_list[i + 1].get_y():
-                    self.dead = True
-        if self.step_counter > grid_count * grid_count:
+        elif self.body_collision_excluding_head(x, y):
             self.dead = True
+        elif self.step_counter > grid_count * grid_count:
+            self.dead = True
+        if self.dead:
             if self.score == 0:
                 self.fitness = self.fitness // 2
-        if self.dead:
             if self.fitness < 0:
                 self.fitness = 0
 
@@ -199,22 +236,22 @@ class NNet:
             self.current_direction = 3
 
         if self.current_direction == 0:
-            self.my_list[0].x_minus_one()
+            self.snake_body[0].x_minus_one()
         elif self.current_direction == 1:
-            self.my_list[0].y_minus_one()
+            self.snake_body[0].y_minus_one()
         elif self.current_direction == 2:
-            self.my_list[0].x_plus_one()
+            self.snake_body[0].x_plus_one()
         elif self.current_direction == 3:
-            self.my_list[0].y_plus_one()
+            self.snake_body[0].y_plus_one()
 
     def create_food(self):
-        if len(self.my_list) != 0:
+        if len(self.snake_body) != 0:
             x = get_random_grid()
             y = get_random_grid()
             on_snake = True
             while on_snake:
                 on_snake = False
-                for i in self.my_list:
+                for i in self.snake_body:
                     if i.get_x() == x and i.get_y() == y:
                         x = get_random_grid()
                         y = get_random_grid()
@@ -237,19 +274,19 @@ class NNet:
         return self.dead
 
     def show_all_elements(self, c1):  # graphics
-        if len(self.my_list) != 0:
-            for i in self.my_list:
+        if len(self.snake_body) != 0:
+            for i in self.snake_body:
                 i.show_blob(c1)
             self.food.show_blob(c1)
 
     def move_all_elements(self, c1):  # graphics
-        if len(self.my_list) != 0:
-            for i in self.my_list:
+        if len(self.snake_body) != 0:
+            for i in self.snake_body:
                 i.move_blob(c1)
 
     def delete_all_elements(self, c1):  # graphics
-        if len(self.my_list) != 0:
-            for i in self.my_list:
+        if len(self.snake_body) != 0:
+            for i in self.snake_body:
                 i.del_obj(c1)
         self.food.del_obj(c1)
 
@@ -267,17 +304,19 @@ class Blob:
         if apple:
             self.col = apple_color
         self.obj = None
+        self.spacing = (grid_size - blob_size) // 2
 
     def del_obj(self, c1):
         c1.delete(self.obj)
 
     def move_blob(self, c1):
-        c1.coords(self.obj, self.x * grid_size + 1, self.y * grid_size + 1, self.x * grid_size + blob_size + 1,
-                  self.y * grid_size + blob_size + 1)
+        c1.coords(self.obj, self.x * grid_size + self.spacing, self.y * grid_size + self.spacing,
+                  self.x * grid_size + blob_size + self.spacing, self.y * grid_size + blob_size + self.spacing)
 
     def show_blob(self, c1):
-        self.obj = c1.create_rectangle(self.x * grid_size + 1, self.y * grid_size + 1,
-                                       self.x * grid_size + blob_size + 1, self.y * grid_size + blob_size + 1,
+        self.obj = c1.create_rectangle(self.x * grid_size + self.spacing, self.y * grid_size + self.spacing,
+                                       self.x * grid_size + blob_size + self.spacing,
+                                       self.y * grid_size + blob_size + self.spacing,
                                        outline=self.col, fill=self.col)
 
     def x_plus_one(self):

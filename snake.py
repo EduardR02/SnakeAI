@@ -8,9 +8,10 @@ window_size = brain.grid_size * brain.grid_count
 my_font = "Courier 15 bold"
 ms_time = 1
 draw_for_update = 10
-population_size = 500 * 2
+population_size = 1000 * 2
 counter = 0
 mutation_rate = 0.05
+mutation_rate2 = 0.9
 counter_2 = 0
 all_snakes = []
 saved_all_snakes = []
@@ -169,7 +170,7 @@ def update(c1, r1, l1):
 
         # if all_snakes[counter].get_score() == 70:
         # ms_time = 100
-        if counter_2 > draw_for_update - 1:
+        if counter_2 >= draw_for_update:
             all_snakes[counter].move_all_elements(c1)  # graphics
             l1.config(text=f"Sc: {all_snakes[counter].get_score()}, A: {counter},"
                            f" Re: {ms_time}, Gen: {gen}, UpD: {draw_for_update}")
@@ -221,74 +222,72 @@ def pick_next_gen():
         all_snakes.insert(1, brain.NNet(best_2.get_net()))
         all_snakes.insert(2, brain.NNet(best_of_gen_1.get_net()))
         all_snakes.insert(3, brain.NNet(best_of_gen_2.get_net()))
+
+    crossover((population_size // 2) - 2, 0.5)
     for i in range((population_size // 2) - 2):
         pick_one()
-        # pick_one_2(i)
-    crossover((population_size // 2) - 2, 0.5)
     saved_all_snakes.clear()
 
 
+def copy_snake(snake):
+    x = brain.NNet(snake.get_net())
+    x.set_fitness(snake.get_fitness())
+    x.set_score(snake.get_score())
+    return x
+
+
 def calc_fitness():
-    global best_1, best_2, all_fitness, best_of_gen_1, best_of_gen_2
-    best_of_gen_1 = brain.NNet()
-    best_of_gen_2 = brain.NNet()
-    best_of_gen_1.set_fitness(0)
-    best_of_gen_2.set_fitness(0)
+    global best_1, best_2, all_fitness, best_of_gen_1, best_of_gen_2, saved_all_snakes
     all_fitness = 0
     for i in saved_all_snakes:
         all_fitness += i.get_fitness()
-        if i.get_fitness() > best_of_gen_1.get_fitness():
-            if best_of_gen_1.get_fitness() > best_of_gen_2.get_fitness():
-                best_of_gen_2 = best_of_gen_1
-            best_of_gen_1 = i
-        elif i.get_fitness() > best_of_gen_2.get_fitness():
-            best_of_gen_2 = i
+    best_of_gen_1 = copy_snake(saved_all_snakes[-1])
+    best_of_gen_2 = copy_snake(saved_all_snakes[-2])
     if best_of_gen_1.get_fitness() > best_1.get_fitness():
         if best_1.get_fitness() > best_2.get_fitness():
-            best_2 = best_1
-        best_1 = best_of_gen_1
+            best_2 = copy_snake(best_1)
+        best_1 = copy_snake(best_of_gen_1)
     elif best_of_gen_1.get_fitness() > best_2.get_fitness():
-        best_2 = best_of_gen_1
+        best_2 = copy_snake(best_of_gen_1)
     if best_of_gen_2.get_fitness() > best_2.get_fitness():
-        best_2 = best_of_gen_2
+        best_2 = copy_snake(best_of_gen_2)
     print("Best:", best_1.get_score(), ",", best_1.get_fitness(), ";", best_2.get_score(), ",", best_2.get_fitness())
     print(f"Best of Gen {gen}:", best_of_gen_1.get_score(), ",", best_of_gen_1.get_fitness(), ";",
           best_of_gen_2.get_score(), ",", best_of_gen_2.get_fitness())
 
 
-def crossover(how_many, bias):
+def crossover(how_many, bias = 0.5):
     global population_size, best_1, best_2
 
     if len(saved_all_snakes) != 0:
         parents = []
-        for i in range(population_size // 12):  # magic number
-            it = saved_all_snakes[-(i + 1)]
-            if it.get_fitness() == 0:
-                if random.uniform(0, 1) <= 0.7:
-                    it = best_1
-                else:
-                    it = best_2
-            parents.append(it)
+        for i in range(population_size // 10):  # magic number 10% of pop
+            parents.append(saved_all_snakes[-(i + 1)])
         for r in range(how_many):
-            child = brain.NNet()
             p1 = parents[random.randint(0, len(parents) - 1)]
             p2 = parents[random.randint(0, len(parents) - 1)]
+            counter_cc = 0
+            while p1 == p2 and counter_cc < 5:
+                p2 = parents[random.randint(0, len(parents) - 1)]
+                counter_cc += 1
 
-            for k, layer in enumerate(p1.get_net().layers):
+            child = brain.NNet(p2.get_net())
+
+            for k, layer in enumerate(child.get_net().layers):
                 child_weights = []
 
                 for p, weight_array in enumerate(layer.get_weights()):
                     save_shape = weight_array.shape
-                    weight_array2 = brain.np.asarray(p2.get_net().layers[k].get_weights()[p])
+                    weight_array2 = brain.np.asarray(p1.get_net().layers[k].get_weights()[p])
                     reshaped_weights = weight_array.reshape(-1)
                     reshaped_weights2 = weight_array2.reshape(-1)
                     for n in range(len(reshaped_weights)):
                         if random.uniform(0, 1) <= bias:
                             reshaped_weights[n] = reshaped_weights2[n]
-
                     new_weights = reshaped_weights.reshape(save_shape)
                     child_weights.append(new_weights)
                 child.net.layers[k].set_weights(child_weights)
+            child.mutate(mutation_rate, mutation_rate2)
             all_snakes.append(child)
     else:
         for i in range(how_many):
@@ -299,7 +298,7 @@ def pick_one_2(i):
     if len(saved_all_snakes) != 0:
         temp = saved_all_snakes[-(i + 1)]
         child = brain.NNet(temp.get_net())
-        child.mutate(mutation_rate)
+        child.mutate(mutation_rate, mutation_rate2)
         all_snakes.append(child)
     else:
         all_snakes.append(brain.NNet())
@@ -323,16 +322,13 @@ def pick_one():
                 if all_fitness == 0:
                     i = random.randint(1, population_size)
                     break
-                d -= (saved_all_snakes[i].get_fitness() / all_fitness)
+                d -= (saved_all_snakes[-i - 1].get_fitness() / all_fitness)
                 i += 1
             i -= 1
-            temp = saved_all_snakes[i]
-            if temp.get_fitness() == 0:
-                pick_one()
-                return
+            temp = saved_all_snakes[-i - 1]
         net = temp.get_net()
         child = brain.NNet(net)
-        child.mutate(mutation_rate)
+        child.mutate(mutation_rate, mutation_rate2)
         all_snakes.append(child)
 
     else:
