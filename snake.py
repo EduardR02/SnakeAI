@@ -4,15 +4,16 @@ from pynput import keyboard
 import brain
 import tensorflow as tf
 import matplotlib.pyplot as plt
+import numpy as np
 
 window_size = brain.grid_size * brain.grid_count
 my_font = "Courier 15 bold"
 ms_time = 1
 draw_for_update = 10
-population_size = 1000 * 2
+population_size = 500 * 2
 counter = 0
 mutation_rate = 0.1
-mutation_rate2 = 1
+mutation_rate2 = 0.8
 counter_2 = 0
 all_snakes = []
 saved_all_snakes = []
@@ -238,9 +239,10 @@ def pick_next_gen():
         all_snakes.insert(2, brain.NNet(best_of_gen_1.get_net()))
         all_snakes.insert(3, brain.NNet(best_of_gen_2.get_net()))
 
-    crossover((population_size // 2) - 2, 0.5)
     for i in range((population_size // 2) - 2):
         pick_one()
+
+    crossover((population_size // 2) - 2, 0.5)
     saved_all_snakes.clear()
 
 
@@ -277,7 +279,7 @@ def crossover(how_many, bias = 0.5):
 
     if len(saved_all_snakes) != 0:
         parents = []
-        for i in range(population_size // 10):  # magic number 10% of pop
+        for i in range(population_size // 5):  # magic number 20% of pop
             parents.append(saved_all_snakes[-(i + 1)])
         for r in range(how_many):
             p1 = parents[random.randint(0, len(parents) - 1)]
@@ -287,21 +289,19 @@ def crossover(how_many, bias = 0.5):
                 p2 = parents[random.randint(0, len(parents) - 1)]
                 counter_cc += 1
 
-            child = brain.NNet(p2.get_net())
-
+            child = brain.NNet(p1.get_net())
+            p2_net = p2.get_net()
             for k, layer in enumerate(child.get_net().layers):
                 child_weights = []
 
                 for p, weight_array in enumerate(layer.get_weights()):
-                    save_shape = weight_array.shape
-                    weight_array2 = brain.np.asarray(p1.get_net().layers[k].get_weights()[p])
-                    reshaped_weights = weight_array.reshape(-1)
-                    reshaped_weights2 = weight_array2.reshape(-1)
-                    for n in range(len(reshaped_weights)):
-                        if random.uniform(0, 1) <= bias:
-                            reshaped_weights[n] = reshaped_weights2[n]
-                    new_weights = reshaped_weights.reshape(save_shape)
-                    child_weights.append(new_weights)
+                    weight_array2 = np.asarray(p2_net.layers[k].get_weights()[p])
+                    weight_mask = (np.random.rand(*weight_array.shape) < bias).astype("int").astype("float64")
+                    weight_mask_2 = np.ones(weight_array2.shape) - weight_mask
+                    weight_array *= weight_mask
+                    weight_array2 *= weight_mask_2
+                    weight_array += weight_array2
+                    child_weights.append(weight_array)
                 child.net.layers[k].set_weights(child_weights)
             child.mutate(mutation_rate, mutation_rate2)
             all_snakes.append(child)
