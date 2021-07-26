@@ -30,7 +30,7 @@ graph_best_gen = []
 
 
 def key_control(key):
-    global ms_time, draw_for_update, key_toggle, load_m
+    global ms_time, draw_for_update, key_toggle, load_m, save_m
     try:
         x = key.char
     except AttributeError:
