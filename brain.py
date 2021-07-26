@@ -31,6 +31,7 @@ def create_model():
                     kernel_initializer=initializer, bias_initializer=initializer))
     model.add(Dense(4, activation="softmax", use_bias=False,
                     kernel_initializer=initializer_two))
+    model.compile()
     return model
 
 

@@ -10,7 +10,7 @@ window_size = brain.grid_size * brain.grid_count
 my_font = "Courier 15 bold"
 ms_time = 1
 draw_for_update = 10
-population_size = 500 * 2
+population_size = 100 * 2
 counter = 0
 mutation_rate = 0.1
 mutation_rate2 = 0.8
@@ -24,6 +24,7 @@ key_toggle = True
 models_file_path = "models/"  # folder from which all models load and save
 graph_file_name = "my_graph_2.png"
 load_m = False
+save_m = False
 no_graphics = False
 graph_best_gen = []
 
@@ -61,7 +62,7 @@ def key_control(key):
         elif x == "l":
             load_m = True
         elif x == "s":
-            save_models()
+            save_m = True
         if ms_time < 0:
             ms_time = 0
 
@@ -112,18 +113,23 @@ def repeat_train():
 # noinspection PyUnresolvedReferences
 def save_models():
     print("saving...")
+    temp = []
     if len(all_snakes) == 0:
-        for i in range(len(saved_all_snakes)):
-            saved_all_snakes[i].net.save(f"{models_file_path}model_nr_{i}.h5")
+        temp = saved_all_snakes
     elif len(saved_all_snakes) == 0:
-        for i in range(len(all_snakes)):
-            all_snakes[i].net.save(f"{models_file_path}model_nr_{i}.h5")
-    if best_1 is not None:
-        best_1.net.save(f"{models_file_path}model_nr_best_1.h5")
-        best_2.net.save(f"{models_file_path}model_nr_best_2.h5")
-        best_of_gen_1.net.save(f"{models_file_path}model_nr_best_of_gen_1.h5")
-        best_of_gen_2.net.save(f"{models_file_path}model_nr_best_of_gen_2.h5")
-    print("models saved!")
+        temp = all_snakes
+    if temp:
+        for i in range(len(temp)):
+            temp[i].net.save(f"{models_file_path}model_nr_{i}.h5")
+
+        if best_1 is not None and best_of_gen_1 is not None:
+            best_1.net.save(f"{models_file_path}model_nr_best_1.h5")
+            best_2.net.save(f"{models_file_path}model_nr_best_2.h5")
+            best_of_gen_1.net.save(f"{models_file_path}model_nr_best_of_gen_1.h5")
+            best_of_gen_2.net.save(f"{models_file_path}model_nr_best_of_gen_2.h5")
+        print("models saved!")
+    else:
+        print("failed to save")
 
 
 def load_models():
@@ -217,6 +223,8 @@ def prep_next_gen(c1=None, r1=None, l1=None):
             all_snakes.clear()
         mergesort(saved_all_snakes)
         calc_fitness()
+        if save_m:
+            save_models()
         pick_next_gen()
         save_graph()
         gen += 1
