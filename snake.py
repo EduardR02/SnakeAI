@@ -10,7 +10,7 @@ window_size = brain.grid_size * brain.grid_count
 my_font = "Courier 15 bold"
 ms_time = 1
 draw_for_update = 10
-population_size = 100 * 2
+population_size = 1000 * 2
 counter = 0
 mutation_rate = 0.1
 mutation_rate2 = 0.8
@@ -112,6 +112,7 @@ def repeat_train():
 
 # noinspection PyUnresolvedReferences
 def save_models():
+    global save_m
     print("saving...")
     temp = []
     if len(all_snakes) == 0:
@@ -130,6 +131,7 @@ def save_models():
         print("models saved!")
     else:
         print("failed to save")
+    save_m = False
 
 
 def load_models():
