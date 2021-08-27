@@ -10,7 +10,7 @@ back_color = "#171717"
 back_color_2 = "#3c3c3c"
 snake_Color = "#4ca3dd"
 apple_color = "#ff4040"
-line_color = "#c5c6c7"
+line_color = "#2f4454"
 food_found_color = "#5cdb95"
 grid_size = 20
 blob_size = grid_size - 2  # should to be even
@@ -362,7 +362,7 @@ class Blob:
             self.obj = c1.create_line((x + max(0, i-1)) * grid_size, (y + max(0, j-1)) * grid_size,
                                       (x + max(0, i-1) + max(0, distance-1) * (i-1)) * grid_size,
                                       (y + max(0, j-1) + max(0, distance-1) * (j-1)) * grid_size,
-                                      fill=curr_color, dash=(2, 10))
+                                      fill=curr_color, dash=(1, 1))
         else:
             self.obj = c1.create_line((x * grid_size + int(i * (grid_size/2))),
                                       (y * grid_size + int(j * (grid_size/2))),
@@ -370,7 +370,7 @@ class Blob:
                                       * grid_size + int((i % 2) * (grid_size / 2)),
                                       (y + max(0, j - 1) + max(0, distance - 1) * (j - 1))
                                       * grid_size + int((j % 2) * (grid_size / 2)),
-                                      fill=curr_color, dash=(2, 10))
+                                      fill=curr_color, dash=(1, 1))
 
     def x_plus_one(self):
         self.x = self.x + 1
