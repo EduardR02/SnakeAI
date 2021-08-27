@@ -1,10 +1,10 @@
 import math
 import random
-import keras.models
-import keras.initializers
-from keras.layers import Dense
+import tensorflow.keras.models as models
+import tensorflow.keras.initializers as initializers
+from tensorflow.keras.layers import Dense
 import numpy as np
-import keras.backend as K
+import tensorflow.keras.backend as K
 
 back_color = "#171717"
 back_color_2 = "#3c3c3c"
@@ -12,9 +12,9 @@ snake_Color = "#4ca3dd"
 apple_color = "#ff4040"
 line_color = "#2f4454"
 food_found_color = "#5cdb95"
-grid_size = 20
+grid_size = 30
 blob_size = grid_size - 2  # should to be even
-grid_count = 40
+grid_count = 20
 start_size = 5
 apple_boost = 1
 input_size = 20
@@ -22,16 +22,15 @@ direction_dict = {0: "left", 1: "top", 2: "right", 3: "bottom"}
 
 
 def create_model():
-    model = keras.models.Sequential()
-    initializer = keras.initializers.RandomNormal(mean=0., stddev=(1.0 / math.sqrt(16 / 2)))
-    initializer_two = keras.initializers.RandomNormal(mean=0., stddev=(1.0 / math.sqrt(4 / 2)))
+    model = models.Sequential()
+    initializer = initializers.RandomNormal(mean=0., stddev=(1.0 / math.sqrt(16 / 2)))
+    initializer2 = initializers.RandomNormal(mean=0., stddev=1.0)
     model.add(Dense(16, activation="relu", input_dim=input_size, use_bias=True,
-                    kernel_initializer=initializer, bias_initializer="zeros"))
+                    kernel_initializer=initializer2, bias_initializer="zeros"))
     model.add(Dense(16, activation="relu", use_bias=True,
-                    kernel_initializer=initializer, bias_initializer="zeros"))
+                    kernel_initializer=initializer2, bias_initializer="zeros"))
     model.add(Dense(4, activation="softmax", use_bias=False,
-                    kernel_initializer=initializer_two))
-    model.compile()
+                    kernel_initializer=initializer2))
     return model
 
 
@@ -180,7 +179,7 @@ class NNet:
         if not self.all_lines:
             for i in range(8):
                 self.all_lines.append(Blob(0, 0, False))
-        for i, data in enumerate(self.surroundings_to_inputs(0, draw=True)):  #index does not matter, only need distance
+        for i, data in enumerate(self.surroundings_to_inputs(0, draw=True)):  # index does not matter, only need data
             self.all_lines[i].del_obj(c1)
             self.all_lines[i].show_line(c1, self.snake_body[0], data)
 

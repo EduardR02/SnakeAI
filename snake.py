@@ -8,11 +8,11 @@ import numpy as np
 
 window_size = brain.grid_size * brain.grid_count
 my_font = "Courier 15 bold"
-ms_time = 100
-draw_for_update = 1
-population_size = 10 * 2
+ms_time = 1
+draw_for_update = 10
+population_size = 2500 * 2
 counter = 0
-mutation_rate = 0.1     # 0.1 seems to work best
+mutation_rate = 0.05     # 0.1 seems to work best
 mutation_rate2 = 0.95
 counter_2 = 0
 all_snakes = []
@@ -27,6 +27,7 @@ load_m = False
 save_m = False
 no_graphics = False
 draw_lines = False
+only_load_best = False
 graph_best_gen = []
 
 
@@ -143,17 +144,17 @@ def load_models():
     print("loading...")
     for i in range(population_size):
         try:
-            all_snakes.append(brain.NNet(brain.keras.models.load_model
+            all_snakes.append(brain.NNet(brain.models.load_model
                                          (f"{models_file_path}model_nr_{i}.h5", compile=False)))
         except OSError:
             all_snakes.append(
-                brain.NNet(brain.keras.models.load_model(f"{models_file_path}model_nr_best_1.h5", compile=False)))
+                brain.NNet(brain.models.load_model(f"{models_file_path}model_nr_best_1.h5", compile=False)))
 
-    best_1 = brain.NNet(brain.keras.models.load_model(f"{models_file_path}model_nr_best_1.h5", compile=False))
-    best_2 = brain.NNet(brain.keras.models.load_model(f"{models_file_path}model_nr_best_2.h5", compile=False))
-    best_of_gen_1 = brain.NNet(brain.keras.models.load_model
+    best_1 = brain.NNet(brain.models.load_model(f"{models_file_path}model_nr_best_1.h5", compile=False))
+    best_2 = brain.NNet(brain.models.load_model(f"{models_file_path}model_nr_best_2.h5", compile=False))
+    best_of_gen_1 = brain.NNet(brain.models.load_model
                                (f"{models_file_path}model_nr_best_of_gen_1.h5", compile=False))
-    best_of_gen_2 = brain.NNet(brain.keras.models.load_model
+    best_of_gen_2 = brain.NNet(brain.models.load_model
                                (f"{models_file_path}model_nr_best_of_gen_2.h5", compile=False))
 
     counter_2 = counter = all_fitness = 0
@@ -213,10 +214,10 @@ def update(c1, r1, l1):
 
 
 def prep_next_gen(c1=None, r1=None, l1=None):
-    global gen, best_2, best_1
+    global gen, best_2, best_1, all_snakes, saved_all_snakes
     brain.K.clear_session()
     if load_m:
-        all_snakes.clear()
+        all_snakes = []
         load_models()
         if no_graphics:
             train(True)
@@ -224,9 +225,8 @@ def prep_next_gen(c1=None, r1=None, l1=None):
             load_level(c1, r1, l1)
     else:
         if not no_graphics:
-            for i in all_snakes:
-                saved_all_snakes.append(i)
-            all_snakes.clear()
+            saved_all_snakes = all_snakes
+            all_snakes = []
         mergesort(saved_all_snakes)
         calc_fitness()
         if save_m:
@@ -242,7 +242,7 @@ def prep_next_gen(c1=None, r1=None, l1=None):
 
 # noinspection PyUnresolvedReferences
 def pick_next_gen():
-    global best_of_gen_1, best_of_gen_2, best_1, best_2
+    global best_of_gen_1, best_of_gen_2, best_1, best_2, saved_all_snakes, all_snakes
     if best_1 is None:
         for i in range(4):
             pick_one()
@@ -253,11 +253,11 @@ def pick_next_gen():
         all_snakes.insert(2, brain.NNet(best_of_gen_1.get_net()))
         all_snakes.insert(3, brain.NNet(best_of_gen_2.get_net()))
 
+    crossover((population_size // 2) - 2, 0.5)
+
     for i in range((population_size // 2) - 2):
         pick_one()
-
-    crossover((population_size // 2) - 2, 0.5)
-    saved_all_snakes.clear()
+    saved_all_snakes = []
 
 
 def copy_snake(snake):
@@ -289,10 +289,8 @@ def calc_fitness():
 
 
 def crossover(how_many, bias = 0.5):
-    global population_size, best_1, best_2
-
     if len(saved_all_snakes) != 0:
-        parents = []
+        parents = [best_1, best_2, best_of_gen_1, best_of_gen_2]
         for i in range(population_size // 5):  # magic number 20% of pop
             parents.append(saved_all_snakes[-(i + 1)])
         for r in range(how_many):
@@ -404,6 +402,7 @@ def center(master):  # graphics
 
 
 def main():
+    global best_1, best_2, all_snakes
     li = keyboard.Listener(on_press=key_control)
     li.start()
     config = tf.compat.v1.ConfigProto()
@@ -420,7 +419,12 @@ def main():
         l1.pack(fill=tk.BOTH)
         canvas.pack()
         root.resizable(0, 0)
-        pick_next_gen()
+        if only_load_best:
+            best_1 = brain.NNet(brain.models.load_model(f"{models_file_path}model_nr_best_1.h5", compile=False))
+            best_2 = best_1
+            all_snakes = [best_1 for _ in range(population_size)]
+        else:
+            pick_next_gen()
         load_level(canvas, root, l1)
         root.mainloop()
     else:
