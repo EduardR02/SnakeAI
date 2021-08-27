@@ -8,9 +8,9 @@ import numpy as np
 
 window_size = brain.grid_size * brain.grid_count
 my_font = "Courier 15 bold"
-ms_time = 1
-draw_for_update = 10
-population_size = 1000 * 2
+ms_time = 100
+draw_for_update = 1
+population_size = 10 * 2
 counter = 0
 mutation_rate = 0.1     # 0.1 seems to work best
 mutation_rate2 = 0.95
@@ -26,11 +26,12 @@ graph_file_name = "my_graph_2.png"
 load_m = False
 save_m = False
 no_graphics = False
+draw_lines = False
 graph_best_gen = []
 
 
 def key_control(key):
-    global ms_time, draw_for_update, key_toggle, load_m, save_m
+    global ms_time, draw_for_update, key_toggle, load_m, save_m, draw_lines
     try:
         x = key.char
     except AttributeError:
@@ -63,6 +64,8 @@ def key_control(key):
             load_m = True
         elif x == "s":
             save_m = True
+        elif x == "w":
+            draw_lines = not draw_lines
         if ms_time < 0:
             ms_time = 0
 
@@ -189,13 +192,13 @@ def update(c1, r1, l1):
         if snake.food_eaten:
             snake.delete_all_elements(c1)
             snake.food = all_snakes[counter].create_food()
-            snake.show_all_elements(c1)
+            snake.show_all_elements(c1, draw_lines)
             snake.food_eaten = False
 
         # if all_snakes[counter].get_score() == 70:
         # ms_time = 100
         if counter_2 >= draw_for_update:
-            snake.move_all_elements(c1)  # graphics
+            snake.move_all_elements(c1, draw_lines)  # graphics
             l1.config(text=f"Sc: {snake.get_score()}, A: {counter},"
                            f" Re: {ms_time}, Gen: {gen}, UpD: {draw_for_update}")
             counter_2 = 0

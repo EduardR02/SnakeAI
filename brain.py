@@ -10,13 +10,14 @@ back_color = "#171717"
 back_color_2 = "#3c3c3c"
 snake_Color = "#4ca3dd"
 apple_color = "#ff4040"
+line_color = "#c5c6c7"
+food_found_color = "#5cdb95"
 grid_size = 20
 blob_size = grid_size - 2  # should to be even
 grid_count = 40
 start_size = 5
 apple_boost = 1
 input_size = 20
-
 direction_dict = {0: "left", 1: "top", 2: "right", 3: "bottom"}
 
 
@@ -45,6 +46,7 @@ class NNet:
     def __init__(self, net=None):
         self.food_eaten = False
         self.snake_body = []
+        self.all_lines = []
         self.current_direction = self.direction = random.randint(0, 3)
         self.create_elements()
         self.food = self.create_food()
@@ -150,23 +152,37 @@ class NNet:
         while not wall_collision(x, y):
             if self.food_collision(x, y):
                 self.add_to_inputs_consistent(1, (distance / grid_count), index)
-                return
+                return distance, True
             if self.body_collision_excluding_head(x, y):
                 self.add_to_inputs_consistent(-1, (distance / grid_count), index)
-                return
+                return distance, False
             distance += 1
             x += xx
             y += yy
         self.add_to_inputs_consistent(-1, (distance / grid_count), index)
+        return distance, False
 
-    def surroundings_to_inputs(self, index):
+    def surroundings_to_inputs(self, index, draw=False):
         temp = 0
+        res = []
         for i in range(3):
             for j in range(3):
                 if i == j == 1:
                     temp = 1
                     continue
-                self.look_in_direction(i - 1, j - 1, (i * 3 + j - temp) * 2 + index)
+                distance, food_found = self.look_in_direction(i - 1, j - 1, (i * 3 + j - temp) * 2 + index)
+                if draw:
+                    res.append((i, j, distance, food_found))
+        return res
+
+    def draw_all_lines(self, c1):
+        if not self.snake_body: return
+        if not self.all_lines:
+            for i in range(8):
+                self.all_lines.append(Blob(0, 0, False))
+        for i, data in enumerate(self.surroundings_to_inputs(0, draw=True)):  #index does not matter, only need distance
+            self.all_lines[i].del_obj(c1)
+            self.all_lines[i].show_line(c1, self.snake_body[0], data)
 
     def print_inputs_sub(self, val, arr):
         print(val, "Food:", arr[0], "Distance:", arr[1])
@@ -181,7 +197,7 @@ class NNet:
 
     def get_inputs(self):
         self.get_direction_input(0)
-        self.surroundings_to_inputs(4)  # 16 inputs
+        self.surroundings_to_inputs(4, draw=False)  # 16 inputs
 
     def think(self):
         self.get_inputs()
@@ -239,18 +255,17 @@ class NNet:
                 self.fitness = 0
 
     def update_head_pos(self):
-        # cannot be opposite direction
+        # cannot be opposite direction, punish if prediction invalid
         if (self.direction + 2) % 4 != self.current_direction:
             self.current_direction = self.direction
-
-        if self.current_direction == 0:
-            self.snake_body[0].x_minus_one()
-        elif self.current_direction == 1:
-            self.snake_body[0].y_minus_one()
-        elif self.current_direction == 2:
-            self.snake_body[0].x_plus_one()
-        elif self.current_direction == 3:
-            self.snake_body[0].y_plus_one()
+        else:
+            # maybe instead just kill?
+            self.fitness -= 2
+        # move head depending on direction
+        if self.current_direction % 2 == 0:
+            self.snake_body[0].set_x(self.snake_body[0].get_x() + self.current_direction - 1)
+        else:
+            self.snake_body[0].set_y(self.snake_body[0].get_y() + self.current_direction - 2)
 
     def create_food(self):
         if len(self.snake_body) != 0:
@@ -281,22 +296,30 @@ class NNet:
     def get_dead(self):
         return self.dead
 
-    def show_all_elements(self, c1):  # graphics
+    def show_all_elements(self, c1, draw_lines=False):  # graphics
         if len(self.snake_body) != 0:
             for i in self.snake_body:
                 i.show_blob(c1)
-            self.food.show_blob(c1)
+        self.food.show_blob(c1)
+        if draw_lines: self.draw_all_lines(c1)
 
-    def move_all_elements(self, c1):  # graphics
+    def move_all_elements(self, c1, draw_lines=False):  # graphics
         if len(self.snake_body) != 0:
             for i in self.snake_body:
                 i.move_blob(c1)
+        if draw_lines: self.draw_all_lines(c1)
+        elif len(self.all_lines) != 0:
+            for i in self.all_lines:
+                i.del_obj(c1)
 
     def delete_all_elements(self, c1):  # graphics
         if len(self.snake_body) != 0:
             for i in self.snake_body:
                 i.del_obj(c1)
         self.food.del_obj(c1)
+        if len(self.all_lines) != 0:
+            for i in self.all_lines:
+                i.del_obj(c1)
 
 
 def get_random_grid():
@@ -309,12 +332,15 @@ class Blob:
         self.y = y
         self.apple = apple
         self.col = snake_Color
+        self.line_col = line_color
+        self.food_found_col = food_found_color
         if apple:
             self.col = apple_color
         self.obj = None
         self.spacing = (grid_size - blob_size) // 2
 
     def del_obj(self, c1):
+        if not self.obj: return
         c1.delete(self.obj)
 
     def move_blob(self, c1):
@@ -326,6 +352,25 @@ class Blob:
                                        self.x * grid_size + blob_size + self.spacing,
                                        self.y * grid_size + blob_size + self.spacing,
                                        outline=self.col, fill=self.col)
+
+    def show_line(self, c1, head_blob, data):
+        x, y = head_blob.get_x(), head_blob.get_y()
+        i, j, distance, food_found = data
+        curr_color = self.food_found_col if food_found else self.line_col
+        # diagonal
+        if i % 2 == 0 and j % 2 == 0:
+            self.obj = c1.create_line((x + max(0, i-1)) * grid_size, (y + max(0, j-1)) * grid_size,
+                                      (x + max(0, i-1) + max(0, distance-1) * (i-1)) * grid_size,
+                                      (y + max(0, j-1) + max(0, distance-1) * (j-1)) * grid_size,
+                                      fill=curr_color, dash=(2, 10))
+        else:
+            self.obj = c1.create_line((x * grid_size + int(i * (grid_size/2))),
+                                      (y * grid_size + int(j * (grid_size/2))),
+                                      (x + max(0, i - 1) + max(0, distance - 1) * (i - 1))
+                                      * grid_size + int((i % 2) * (grid_size / 2)),
+                                      (y + max(0, j - 1) + max(0, distance - 1) * (j - 1))
+                                      * grid_size + int((j % 2) * (grid_size / 2)),
+                                      fill=curr_color, dash=(2, 10))
 
     def x_plus_one(self):
         self.x = self.x + 1
