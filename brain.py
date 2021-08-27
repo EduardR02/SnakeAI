@@ -10,13 +10,12 @@ back_color = "#171717"
 back_color_2 = "#3c3c3c"
 snake_Color = "#4ca3dd"
 apple_color = "#ff4040"
-grid_size = 30
+grid_size = 20
 blob_size = grid_size - 2  # should to be even
-grid_count = 20
+grid_count = 40
 start_size = 5
 apple_boost = 1
-start_direction = 0
-input_size = 28
+input_size = 20
 
 direction_dict = {0: "left", 1: "top", 2: "right", 3: "bottom"}
 
@@ -26,9 +25,9 @@ def create_model():
     initializer = keras.initializers.RandomNormal(mean=0., stddev=(1.0 / math.sqrt(16 / 2)))
     initializer_two = keras.initializers.RandomNormal(mean=0., stddev=(1.0 / math.sqrt(4 / 2)))
     model.add(Dense(16, activation="relu", input_dim=input_size, use_bias=True,
-                    kernel_initializer=initializer, bias_initializer=initializer))
-    model.add(Dense(16, activation="relu", input_dim=input_size, use_bias=True,
-                    kernel_initializer=initializer, bias_initializer=initializer))
+                    kernel_initializer=initializer, bias_initializer="zeros"))
+    model.add(Dense(16, activation="relu", use_bias=True,
+                    kernel_initializer=initializer, bias_initializer="zeros"))
     model.add(Dense(4, activation="softmax", use_bias=False,
                     kernel_initializer=initializer_two))
     model.compile()
@@ -46,11 +45,10 @@ class NNet:
     def __init__(self, net=None):
         self.food_eaten = False
         self.snake_body = []
+        self.current_direction = self.direction = random.randint(0, 3)
         self.create_elements()
         self.food = self.create_food()
         self.dead = False
-        self.direction = start_direction
-        self.current_direction = start_direction
         self.score = 0
         self.fitness = 0
         self.step_counter = 0
@@ -141,10 +139,9 @@ class NNet:
                 return True
         return False
 
-    def add_to_inputs_consistent(self, food, body, distance, index):
+    def add_to_inputs_consistent(self, food, distance, index):
         self.inputs[index] = food
-        self.inputs[index + 1] = body
-        self.inputs[index + 2] = distance
+        self.inputs[index + 1] = distance
 
     def look_in_direction(self, xx, yy, index):
         x = self.snake_body[0].get_x() + xx
@@ -152,15 +149,15 @@ class NNet:
         distance = 1
         while not wall_collision(x, y):
             if self.food_collision(x, y):
-                self.add_to_inputs_consistent(1, -1, (distance / grid_count), index)
+                self.add_to_inputs_consistent(1, (distance / grid_count), index)
                 return
             if self.body_collision_excluding_head(x, y):
-                self.add_to_inputs_consistent(-1, 1, (distance / grid_count), index)
+                self.add_to_inputs_consistent(-1, (distance / grid_count), index)
                 return
             distance += 1
             x += xx
             y += yy
-        self.add_to_inputs_consistent(-1, -1, (distance / grid_count), index)
+        self.add_to_inputs_consistent(-1, (distance / grid_count), index)
 
     def surroundings_to_inputs(self, index):
         temp = 0
@@ -169,21 +166,22 @@ class NNet:
                 if i == j == 1:
                     temp = 1
                     continue
-                self.look_in_direction(i - 1, j - 1, (i * 3 + j - temp) * 3 + index)
+                self.look_in_direction(i - 1, j - 1, (i * 3 + j - temp) * 2 + index)
 
     def print_inputs_sub(self, val, arr):
-        print(val, "Food:", arr[0], "Body:", arr[1], "Distance:", arr[2])
+        print(val, "Food:", arr[0], "Distance:", arr[1])
 
     def print_inputs(self):
         print("Direction:", direction_dict.get(int(np.argmax(self.inputs[:4], axis=-1))))
         vals = {0: "left-top", 1: "left", 2: "left-bottom", 3: "top", 4: "bottom",
                 5: "right-top", 6: "right", 7: "right-bottom"}
         for i in range(8):
-            self.print_inputs_sub("Vision, " + vals[i] + ":", self.inputs[4 + i*3: 7 + i*3])
+            self.print_inputs_sub("Vision, " + vals[i] + ":", self.inputs[4 + i*2: 7 + i*2])
+        print("------------------------------------------------------------")
 
     def get_inputs(self):
         self.get_direction_input(0)
-        self.surroundings_to_inputs(4)  # 24 inputs
+        self.surroundings_to_inputs(4)  # 16 inputs
 
     def think(self):
         self.get_inputs()
@@ -196,10 +194,10 @@ class NNet:
             for j, layer in enumerate(self.net.layers):
                 new_weights_for_layer = []
                 for weight_array in layer.get_weights():
-                    weight_mask = (np.random.rand(*weight_array.shape) < rate).astype("int").astype("float64")    # * "opens" the tuple
+                    weight_mask = np.random.rand(*weight_array.shape) < rate    # array of true and false
                     mutation_update = np.random.randn(*weight_array.shape) / 5    # * "opens" the tuple
-                    weight_mask *= mutation_update
-                    weight_array += weight_mask
+                    mutation_update *= weight_mask
+                    weight_array += mutation_update     # add mask to weights
                     new_weights_for_layer.append(weight_array)
 
                 self.net.layers[j].set_weights(new_weights_for_layer)
@@ -208,8 +206,11 @@ class NNet:
         global start_size
         if start_size == 0:
             start_size = 1
+        # will spawn in a straight line opposite of direction
+        x = 1 if self.current_direction == 0 else -1 if self.current_direction == 2 else 0
+        y = 1 if self.current_direction == 1 else -1 if self.current_direction == 3 else 0
         for i in range(start_size):
-            self.create_element(grid_count // 2 + i, grid_count // 2)
+            self.create_element(grid_count // 2 + x * i, grid_count // 2 + y * i)
 
     def create_element(self, posx, posy):
         blob1 = Blob(posx, posy, False)
@@ -230,6 +231,7 @@ class NNet:
             self.dead = True
         elif self.step_counter > grid_count * grid_count:
             self.dead = True
+            self.fitness = self.fitness // 2
         if self.dead:
             if self.score == 0:
                 self.fitness = self.fitness // 2
@@ -237,14 +239,9 @@ class NNet:
                 self.fitness = 0
 
     def update_head_pos(self):
-        if self.direction == 0 and self.current_direction != 2:
-            self.current_direction = 0
-        elif self.direction == 1 and self.current_direction != 3:
-            self.current_direction = 1
-        elif self.direction == 2 and self.current_direction != 0:
-            self.current_direction = 2
-        elif self.direction == 3 and self.current_direction != 1:
-            self.current_direction = 3
+        # cannot be opposite direction
+        if (self.direction + 2) % 4 != self.current_direction:
+            self.current_direction = self.direction
 
         if self.current_direction == 0:
             self.snake_body[0].x_minus_one()

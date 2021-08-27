@@ -12,8 +12,8 @@ ms_time = 1
 draw_for_update = 10
 population_size = 1000 * 2
 counter = 0
-mutation_rate = 0.1
-mutation_rate2 = 0.8
+mutation_rate = 0.1     # 0.1 seems to work best
+mutation_rate2 = 0.95
 counter_2 = 0
 all_snakes = []
 saved_all_snakes = []
@@ -180,22 +180,23 @@ def init_agent(c1, r1, l1):
 
 def update(c1, r1, l1):
     global counter_2, counter, ms_time
-    if not all_snakes[counter].get_dead() and len(all_snakes) != 0:
-        all_snakes[counter].think()
-        all_snakes[counter].update()
+    snake = all_snakes[counter]
+    if not snake.get_dead() and len(all_snakes) != 0:
+        snake.think()
+        snake.update()
         counter_2 += 1
 
-        if all_snakes[counter].food_eaten:
-            all_snakes[counter].delete_all_elements(c1)
-            all_snakes[counter].food = all_snakes[counter].create_food()
-            all_snakes[counter].show_all_elements(c1)
-            all_snakes[counter].food_eaten = False
+        if snake.food_eaten:
+            snake.delete_all_elements(c1)
+            snake.food = all_snakes[counter].create_food()
+            snake.show_all_elements(c1)
+            snake.food_eaten = False
 
         # if all_snakes[counter].get_score() == 70:
         # ms_time = 100
         if counter_2 >= draw_for_update:
-            all_snakes[counter].move_all_elements(c1)  # graphics
-            l1.config(text=f"Sc: {all_snakes[counter].get_score()}, A: {counter},"
+            snake.move_all_elements(c1)  # graphics
+            l1.config(text=f"Sc: {snake.get_score()}, A: {counter},"
                            f" Re: {ms_time}, Gen: {gen}, UpD: {draw_for_update}")
             counter_2 = 0
             r1.after(ms_time, update, c1, r1, l1)
@@ -203,7 +204,7 @@ def update(c1, r1, l1):
             update(c1, r1, l1)
 
     else:
-        all_snakes[counter].delete_all_elements(c1)  # graphics
+        snake.delete_all_elements(c1)  # graphics
         counter += 1
         load_level(c1, r1, l1)
 
@@ -306,8 +307,8 @@ def crossover(how_many, bias = 0.5):
 
                 for p, weight_array in enumerate(layer.get_weights()):
                     weight_array2 = np.asarray(p2_net.layers[k].get_weights()[p])
-                    weight_mask = (np.random.rand(*weight_array.shape) < bias).astype("int").astype("float64")
-                    weight_mask_2 = np.ones(weight_array2.shape) - weight_mask
+                    weight_mask = np.random.rand(*weight_array.shape) < bias    # array of true and false
+                    weight_mask_2 = np.ones(weight_array2.shape) - weight_mask      # this works with true false vals
                     weight_array *= weight_mask
                     weight_array2 *= weight_mask_2
                     weight_array += weight_array2
