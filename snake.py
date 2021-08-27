@@ -8,9 +8,9 @@ import numpy as np
 
 window_size = brain.grid_size * brain.grid_count
 my_font = "Courier 15 bold"
-ms_time = 1
-draw_for_update = 10
-population_size = 2500 * 2
+ms_time = 100
+draw_for_update = 1
+population_size = 100 * 2
 counter = 0
 mutation_rate = 0.05     # 0.1 seems to work best
 mutation_rate2 = 0.95
@@ -27,7 +27,7 @@ load_m = False
 save_m = False
 no_graphics = False
 draw_lines = False
-only_load_best = False
+only_load_best = True
 graph_best_gen = []
 
 
@@ -420,9 +420,10 @@ def main():
         canvas.pack()
         root.resizable(0, 0)
         if only_load_best:
-            best_1 = brain.NNet(brain.models.load_model(f"{models_file_path}model_nr_best_1.h5", compile=False))
+            best_1 = brain.NNet(brain.models.load_model(f"{models_file_path}model_nr_best_of_gen_1.h5", compile=False))
             best_2 = best_1
-            all_snakes = [best_1 for _ in range(population_size)]
+            for _ in range(population_size):
+                all_snakes.append(brain.NNet(best_1.get_net()))
         else:
             pick_next_gen()
         load_level(canvas, root, l1)
