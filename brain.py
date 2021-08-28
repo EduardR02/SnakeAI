@@ -330,6 +330,7 @@ class Blob:
         self.x = x
         self.y = y
         self.apple = apple
+        self.col = snake_Color
         if apple:
             self.col = apple_color
         self.obj = None
@@ -347,7 +348,7 @@ class Blob:
         self.obj = c1.create_rectangle(self.x * grid_size + self.spacing, self.y * grid_size + self.spacing,
                                        self.x * grid_size + blob_size + self.spacing,
                                        self.y * grid_size + blob_size + self.spacing,
-                                       outline=self.col, fill=snake_Color)
+                                       outline=self.col, fill=self.col)
 
     def show_line(self, c1, head_blob, data):
         x, y = head_blob.get_x(), head_blob.get_y()
