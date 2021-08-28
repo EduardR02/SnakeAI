@@ -152,18 +152,19 @@ class NNet:
         x = self.snake_body[0].get_x() + xx
         y = self.snake_body[0].get_y() + yy
         distance = 1
+        # distinguish between body == -1, food == 1 and wall == 0
         while not wall_collision(x, y):
             if self.food_collision(x, y):
                 self.add_to_inputs_consistent(1, (distance / grid_count), index)
-                return distance, True
+                return distance, 1
             if self.body_collision_excluding_head(x, y):
                 self.add_to_inputs_consistent(-1, (distance / grid_count), index)
-                return distance, False
+                return distance, -1
             distance += 1
             x += xx
             y += yy
-        self.add_to_inputs_consistent(-1, (distance / grid_count), index)
-        return distance, False
+        self.add_to_inputs_consistent(0, (distance / grid_count), index)
+        return distance, 0
 
     def surroundings_to_inputs(self, index, draw=False):
         temp = 0
@@ -173,9 +174,9 @@ class NNet:
                 if i == j == 1:
                     temp = 1
                     continue
-                distance, food_found = self.look_in_direction(i - 1, j - 1, (i * 3 + j - temp) * 2 + index)
+                distance, thing_found = self.look_in_direction(i - 1, j - 1, (i * 3 + j - temp) * 2 + index)
                 if draw:
-                    res.append((i, j, distance, food_found))
+                    res.append((i, j, distance, thing_found))
         return res
 
     def draw_all_lines(self, c1):
@@ -329,9 +330,6 @@ class Blob:
         self.x = x
         self.y = y
         self.apple = apple
-        self.col = snake_Color
-        self.line_col = line_color
-        self.food_found_col = food_found_color
         if apple:
             self.col = apple_color
         self.obj = None
@@ -349,12 +347,13 @@ class Blob:
         self.obj = c1.create_rectangle(self.x * grid_size + self.spacing, self.y * grid_size + self.spacing,
                                        self.x * grid_size + blob_size + self.spacing,
                                        self.y * grid_size + blob_size + self.spacing,
-                                       outline=self.col, fill=self.col)
+                                       outline=self.col, fill=snake_Color)
 
     def show_line(self, c1, head_blob, data):
         x, y = head_blob.get_x(), head_blob.get_y()
-        i, j, distance, food_found = data
-        curr_color = self.food_found_col if food_found else self.line_col
+        i, j, distance, thing_found = data
+        # assign correct line color based on what was found
+        curr_color = food_found_color if thing_found == 1 else line_color if thing_found == 0 else apple_color
         # diagonal
         if i % 2 == 0 and j % 2 == 0:
             self.obj = c1.create_line((x + max(0, i-1)) * grid_size, (y + max(0, j-1)) * grid_size,
