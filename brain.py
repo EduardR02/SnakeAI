@@ -80,24 +80,28 @@ class NNet:
         if not self.dead:
             self.step_counter += 1
             if self.step_counter % 10 == 0:
-                self.fitness += 1
+                self.fitness += 2
 
-            for i in range(len(self.snake_body) - 1, 0, - 1):
-                self.snake_body[i].set_x(self.snake_body[i - 1].get_x())
-                self.snake_body[i].set_y(self.snake_body[i - 1].get_y())
-
+            self.update_body_pos()
             self.update_head_pos()
-            self.update_fitness()
+            # self.update_fitness()
+            self.update_snake_if_food_eaten()
             self.dead_check()
-
-            if self.food_collision(self.snake_body[0].get_x(), self.snake_body[0].get_y()):
-                self.add_elements()
-                self.food_eaten = True
-                self.step_counter = 0
-                self.score += apple_boost
-                self.fitness += 100 * apple_boost
             # self.get_inputs()
             # self.print_inputs()
+
+    def update_snake_if_food_eaten(self):
+        if self.food_collision(self.snake_body[0].get_x(), self.snake_body[0].get_y()):
+            self.add_elements()
+            self.food_eaten = True
+            self.step_counter = 0
+            self.score += apple_boost
+            self.fitness += 100 * apple_boost
+
+    def update_body_pos(self):
+        for i in range(len(self.snake_body) - 1, 0, - 1):
+            self.snake_body[i].set_x(self.snake_body[i - 1].get_x())
+            self.snake_body[i].set_y(self.snake_body[i - 1].get_y())
 
     def get_line(self, x):
         pass
@@ -204,8 +208,9 @@ class NNet:
         g = np.argmax(self.net(temp), axis=-1)[0]
         self.direction = g
 
-    def mutate(self, rate, mutate_at_all):
+    def mutate(self, rate, mutate_at_all, random_mutate=False):
         if random.uniform(0, 1) <= mutate_at_all:
+            if random_mutate: rate *= random.random()     # rate becomes the max
             for j, layer in enumerate(self.net.layers):
                 new_weights_for_layer = []
                 for weight_array in layer.get_weights():
@@ -240,16 +245,10 @@ class NNet:
     def dead_check(self):
         x = self.snake_body[0].get_x()
         y = self.snake_body[0].get_y()
-        if wall_collision(x, y):
+        if wall_collision(x, y) or self.body_collision_excluding_head(x, y)\
+                or self.step_counter > len(self.snake_body) + grid_count * 4:
             self.dead = True
-        elif self.body_collision_excluding_head(x, y):
-            self.dead = True
-        elif self.step_counter > grid_count * grid_count:
-            self.dead = True
-            self.fitness = self.fitness // 2
         if self.dead:
-            if self.score == 0:
-                self.fitness = self.fitness // 2
             if self.fitness < 0:
                 self.fitness = 0
 

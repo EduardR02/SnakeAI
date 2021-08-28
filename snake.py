@@ -8,11 +8,12 @@ import numpy as np
 
 window_size = brain.grid_size * brain.grid_count
 my_font = "Courier 15 bold"
-ms_time = 100
-draw_for_update = 1
-population_size = 100 * 2
+ms_time = 1
+draw_for_update = 10
+population_size = 1000 * 2
 counter = 0
-mutation_rate = 0.05     # 0.1 seems to work best
+mutation_rate = 0.2     # 0.1 seems to work best, can be randomly set to 0 - mutation_rate with random_mutate
+random_mutate = True
 mutation_rate2 = 0.95
 counter_2 = 0
 all_snakes = []
@@ -22,12 +23,12 @@ best_1 = best_2 = best_of_gen_1 = best_of_gen_2 = None
 all_fitness = 0
 key_toggle = True
 models_file_path = "models/"  # folder from which all models load and save
-graph_file_name = "my_graph_2.png"
+graph_file_name = "my_graph_3.png"
 load_m = False
 save_m = False
 no_graphics = False
 draw_lines = False
-only_load_best = True
+only_load_best = False
 graph_best_gen = []
 
 
@@ -291,7 +292,7 @@ def calc_fitness():
 def crossover(how_many, bias = 0.5):
     if len(saved_all_snakes) != 0:
         parents = [best_1, best_2, best_of_gen_1, best_of_gen_2]
-        for i in range(population_size // 5):  # magic number 20% of pop
+        for i in range(population_size // 10):  # magic number 10% of pop
             parents.append(saved_all_snakes[-(i + 1)])
         for r in range(how_many):
             p1 = parents[random.randint(0, len(parents) - 1)]
@@ -315,7 +316,7 @@ def crossover(how_many, bias = 0.5):
                     weight_array += weight_array2
                     child_weights.append(weight_array)
                 child.net.layers[k].set_weights(child_weights)
-            child.mutate(mutation_rate, mutation_rate2)
+            child.mutate(mutation_rate, mutation_rate2, random_mutate=random_mutate)
             all_snakes.append(child)
     else:
         for i in range(how_many):
@@ -326,7 +327,7 @@ def pick_one_2(i):
     if len(saved_all_snakes) != 0:
         temp = saved_all_snakes[-(i + 1)]
         child = brain.NNet(temp.get_net())
-        child.mutate(mutation_rate, mutation_rate2)
+        child.mutate(mutation_rate, mutation_rate2, random_mutate=random_mutate)
         all_snakes.append(child)
     else:
         all_snakes.append(brain.NNet())
@@ -356,7 +357,7 @@ def pick_one():
             temp = saved_all_snakes[-i - 1]
         net = temp.get_net()
         child = brain.NNet(net)
-        child.mutate(mutation_rate, mutation_rate2)
+        child.mutate(mutation_rate, mutation_rate2, random_mutate=random_mutate)
         all_snakes.append(child)
 
     else:
@@ -407,7 +408,7 @@ def main():
     li.start()
     config = tf.compat.v1.ConfigProto()
     config.gpu_options.allow_growth = True
-    session = tf.compat.v1.Session(config=config)  # because tf is bugge bugge
+    session = tf.compat.v1.Session(config=config)
     if not no_graphics:
         root = tk.Tk()
         center(root)
