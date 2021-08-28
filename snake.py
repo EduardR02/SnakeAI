@@ -10,7 +10,7 @@ window_size = brain.grid_size * brain.grid_count
 my_font = "Courier 15 bold"
 ms_time = 1
 draw_for_update = 10
-population_size = 1000 * 2
+population_size = 100 * 2
 counter = 0
 mutation_rate = 0.2     # 0.1 seems to work best, can be randomly set to 0 - mutation_rate with random_mutate
 random_mutate = True
@@ -200,11 +200,15 @@ def update(c1, r1, l1):
         # if all_snakes[counter].get_score() == 70:
         # ms_time = 100
         if counter_2 >= draw_for_update:
-            snake.move_all_elements(c1, draw_lines)  # graphics
+            if not snake.get_dead():
+                snake.move_all_elements(c1, draw_lines)  # graphics
             l1.config(text=f"Sc: {snake.get_score()}, A: {counter},"
                            f" Re: {ms_time}, Gen: {gen}, UpD: {draw_for_update}")
             counter_2 = 0
-            r1.after(ms_time, update, c1, r1, l1)
+            if not snake.get_dead():
+                r1.after(ms_time, update, c1, r1, l1)
+            else:
+                update(c1, r1, l1)
         else:
             update(c1, r1, l1)
 
