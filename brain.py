@@ -17,20 +17,21 @@ blob_size = grid_size - 2  # should to be even
 grid_count = 20
 start_size = 5
 apple_boost = 1
-input_size = 20
+input_size = 24
 direction_dict = {0: "left", 1: "top", 2: "right", 3: "bottom"}
+object_dict = {"food": 2, "wall": 0, "body": 1}
 
 
 def create_model():
     model = models.Sequential()
     initializer = initializers.RandomNormal(mean=0., stddev=(1.0 / math.sqrt(16 / 2)))
-    initializer2 = initializers.RandomNormal(mean=0., stddev=1.0)
+    # initializer = initializers.RandomNormal(mean=0., stddev=1.0)
     model.add(Dense(16, activation="relu", input_dim=input_size, use_bias=True,
-                    kernel_initializer=initializer2, bias_initializer="zeros"))
+                    kernel_initializer=initializer, bias_initializer="zeros"))
     model.add(Dense(16, activation="relu", use_bias=True,
-                    kernel_initializer=initializer2, bias_initializer="zeros"))
+                    kernel_initializer=initializer, bias_initializer="zeros"))
     model.add(Dense(4, activation="softmax", use_bias=False,
-                    kernel_initializer=initializer2))
+                    kernel_initializer=initializer))
     return model
 
 
@@ -144,9 +145,11 @@ class NNet:
                 return True
         return False
 
-    def add_to_inputs_consistent(self, food, distance, index):
-        self.inputs[index] = food
-        self.inputs[index + 1] = distance
+    def add_to_inputs_consistent(self, thing, distance, index):
+        self.inputs[index] = -1
+        self.inputs[index + 1] = -1
+        self.inputs[index + 2] = -1
+        self.inputs[index + thing] = distance
 
     def look_in_direction(self, xx, yy, index):
         x = self.snake_body[0].get_x() + xx
@@ -155,18 +158,19 @@ class NNet:
         # distinguish between body == -1, food == 1 and wall == 0
         while not wall_collision(x, y):
             if self.food_collision(x, y):
-                self.add_to_inputs_consistent(1, (distance / grid_count), index)
-                return distance, 1
+                self.add_to_inputs_consistent(object_dict["food"], (distance / (grid_count - 1)), index)
+                return distance, object_dict["food"]
             if self.body_collision_excluding_head(x, y):
-                self.add_to_inputs_consistent(-1, (distance / grid_count), index)
-                return distance, -1
+                self.add_to_inputs_consistent(object_dict["body"], (distance / (grid_count - 1)), index)
+                return distance, object_dict["body"]
             distance += 1
             x += xx
             y += yy
-        self.add_to_inputs_consistent(0, (distance / grid_count), index)
-        return distance, 0
+        self.add_to_inputs_consistent(object_dict["wall"], (distance / (grid_count - 1)), index)
+        return distance, object_dict["wall"]
 
     def surroundings_to_inputs(self, index, draw=False):
+        inputs_per_direction = 3
         temp = 0
         res = []
         for i in range(3):
@@ -174,7 +178,7 @@ class NNet:
                 if i == j == 1:
                     temp = 1
                     continue
-                distance, thing_found = self.look_in_direction(i - 1, j - 1, (i * 3 + j - temp) * 2 + index)
+                distance, thing_found = self.look_in_direction(i - 1, j - 1, (i * 3 + j - temp) * inputs_per_direction + index)
                 if draw:
                     res.append((i, j, distance, thing_found))
         return res
@@ -200,8 +204,8 @@ class NNet:
         print("------------------------------------------------------------")
 
     def get_inputs(self):
-        self.get_direction_input(0)
-        self.surroundings_to_inputs(4, draw=False)  # 16 inputs
+        # self.get_direction_input(0) # unnecessary, as surrounding_inputs are enough to figure out direction
+        self.surroundings_to_inputs(0, draw=False)  # 24 inputs
 
     def think(self):
         self.get_inputs()
@@ -211,7 +215,7 @@ class NNet:
 
     def mutate(self, rate, mutate_at_all, random_mutate=False):
         if random.uniform(0, 1) <= mutate_at_all:
-            if random_mutate: rate *= random.random()     # rate becomes the max
+            if random_mutate: rate *= random.random()     # rate becomes 0 - rate
             for j, layer in enumerate(self.net.layers):
                 new_weights_for_layer = []
                 for weight_array in layer.get_weights():
@@ -257,9 +261,6 @@ class NNet:
         # cannot be opposite direction, punish if prediction invalid
         if (self.direction + 2) % 4 != self.current_direction:
             self.current_direction = self.direction
-        else:
-            # maybe instead just kill?
-            self.fitness -= 2
         # move head depending on direction
         if self.current_direction % 2 == 0:
             self.snake_body[0].set_x(self.snake_body[0].get_x() + self.current_direction - 1)
@@ -354,7 +355,7 @@ class Blob:
         x, y = head_blob.get_x(), head_blob.get_y()
         i, j, distance, thing_found = data
         # assign correct line color based on what was found
-        curr_color = food_found_color if thing_found == 1 else line_color if thing_found == 0 else apple_color
+        curr_color = food_found_color if thing_found == object_dict["food"] else line_color if thing_found == object_dict["wall"] else apple_color
         # diagonal
         if i % 2 == 0 and j % 2 == 0:
             self.obj = c1.create_line((x + max(0, i-1)) * grid_size, (y + max(0, j-1)) * grid_size,
