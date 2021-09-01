@@ -10,10 +10,10 @@ window_size = brain.grid_size * brain.grid_count
 my_font = "Courier 15 bold"
 ms_time = 1
 draw_for_update = 10
-population_size = 100 * 2
+population_size = 1000 * 2
 counter = 0
-mutation_rate = 0.2     # 0.1 seems to work best, can be randomly set to 0 - mutation_rate with random_mutate
-random_mutate = True
+mutation_rate = 0.1    # 0.1 seems to work best, can be randomly set to 0 - mutation_rate with random_mutate
+random_mutate = False
 mutation_rate2 = 0.95
 counter_2 = 0
 all_snakes = []
@@ -22,8 +22,8 @@ gen = 1
 best_1 = best_2 = best_of_gen_1 = best_of_gen_2 = None
 all_fitness = 0
 key_toggle = True
-models_file_path = "models/"  # folder from which all models load and save
-graph_file_name = "my_graph_3.png"
+models_file_path = "models3/"  # folder from which all models load and save
+graph_file_name = "my_graph_5.png"
 load_m = False
 save_m = False
 no_graphics = False
@@ -73,13 +73,26 @@ def key_control(key):
 
 
 def save_graph():
-    plt.plot(graph_best_gen, color="#61AFEF")
-    plt.xlabel('Generation')
-    plt.ylabel('Score')
+    fig, ax1 = plt.subplots()
+    color = "#61AFEF"
+    ax1.set_xlabel('Generation')
+    ax1.set_ylabel('Score', color=color)
+    ax1.plot(np.asarray(graph_best_gen)[:, 0], color=color)
+    ax1.tick_params(axis='y', labelcolor=color)
+
+    ax2 = ax1.twinx()  # instantiate a second axes that shares the same x-axis
+
+    color = "#5cdb95"
+    ax2.set_ylabel("Average Fitness", color=color)  # we already handled the x-label with ax1
+    ax2.plot(np.asarray(graph_best_gen)[:, 1] / population_size, color=color)
+    ax2.tick_params(axis='y', labelcolor=color)
+
+    fig.tight_layout()  # otherwise the right y-label is slightly clipped
+
     plt.title('Snake Neural Network')
-    ax = plt.gca()
-    ax.set_facecolor('#2b2b2b')
+    ax1.set_facecolor('#2b2b2b')
     plt.savefig(graph_file_name, bbox_inches="tight")
+    plt.close("all")
 
 
 def train(loaded=False):
@@ -287,41 +300,48 @@ def calc_fitness():
         best_2 = copy_snake(best_of_gen_1)
     if best_of_gen_2.get_fitness() > best_2.get_fitness():
         best_2 = copy_snake(best_of_gen_2)
-    graph_best_gen.append(best_of_gen_1.get_score())
+    graph_best_gen.append([best_of_gen_1.get_score(), all_fitness])
     print("Best:", best_1.get_score(), ",", best_1.get_fitness(), ";", best_2.get_score(), ",", best_2.get_fitness())
     print(f"Best of Gen {gen}:", best_of_gen_1.get_score(), ",", best_of_gen_1.get_fitness(), ";",
           best_of_gen_2.get_score(), ",", best_of_gen_2.get_fitness())
 
 
 def crossover(how_many, bias = 0.5):
+    # how_many has to be even
     if len(saved_all_snakes) != 0:
+        # top 5%
         parents = [best_1, best_2, best_of_gen_1, best_of_gen_2]
-        for i in range(population_size // 10):  # magic number 10% of pop
-            parents.append(saved_all_snakes[-(i + 1)])
-        for r in range(how_many):
+        for i in range(population_size//20):
+            parents.append(get_random_snake_by_fitness())
+        for r in range(how_many // 2):
             p1 = parents[random.randint(0, len(parents) - 1)]
             p2 = parents[random.randint(0, len(parents) - 1)]
             counter_cc = 0
-            while p1 == p2 and counter_cc < 5:
+            while p1.equals(p2) and counter_cc < 5:
+                p1 = parents[random.randint(0, len(parents) - 1)]
                 p2 = parents[random.randint(0, len(parents) - 1)]
                 counter_cc += 1
 
-            child = brain.NNet(p1.get_net())
+            child1 = brain.NNet(p1.get_net())
+            child2 = brain.NNet(p2.get_net())
             p2_net = p2.get_net()
-            for k, layer in enumerate(child.get_net().layers):
-                child_weights = []
-
+            for k, layer in enumerate(child1.get_net().layers):
+                child_weights1 = []
+                child_weights2 = []
                 for p, weight_array in enumerate(layer.get_weights()):
                     weight_array2 = np.asarray(p2_net.layers[k].get_weights()[p])
+                    # np rand expects non tuple as shape, ones expects tuple as shape
                     weight_mask = np.random.rand(*weight_array.shape) < bias    # array of true and false
                     weight_mask_2 = np.ones(weight_array2.shape) - weight_mask      # this works with true false vals
-                    weight_array *= weight_mask
-                    weight_array2 *= weight_mask_2
-                    weight_array += weight_array2
-                    child_weights.append(weight_array)
-                child.net.layers[k].set_weights(child_weights)
-            child.mutate(mutation_rate, mutation_rate2, random_mutate=random_mutate)
-            all_snakes.append(child)
+                    # the children will never have weights from the same parent on the same spot, always opposite
+                    new_weights1 = weight_array * weight_mask + weight_array2 * weight_mask_2
+                    new_weights2 = weight_array * weight_mask_2 + weight_array2 * weight_mask
+                    child_weights1.append(new_weights1)
+                    child_weights2.append(new_weights2)
+                child1.net.layers[k].set_weights(child_weights1)
+                child2.net.layers[k].set_weights(child_weights2)
+            all_snakes.append(child1)
+            all_snakes.append(child2)
     else:
         for i in range(how_many):
             all_snakes.append(brain.NNet())
@@ -337,30 +357,28 @@ def pick_one_2(i):
         all_snakes.append(brain.NNet())
 
 
+def get_random_snake_by_fitness():
+    d = random.random()
+    i = 0
+    while d > 0:
+        if all_fitness == 0:
+            i = random.randint(1, population_size)
+            break
+        d -= (saved_all_snakes[-i - 1].get_fitness() / all_fitness)
+        i += 1
+    i -= 1
+    return saved_all_snakes[-i - 1]
+
+
 def pick_one():
     if len(saved_all_snakes) != 0:
         s = random.random()
-        if s <= 0.1:
-            temp = best_1
-        elif 0.1 < s <= 0.2:
-            temp = best_2
-        elif 0.2 < s <= 0.3:
-            temp = best_of_gen_1
-        elif 0.3 < s <= 0.4:
-            temp = best_of_gen_2
-        else:
-            d = random.random()
-            i = 0
-            while 0 < d:
-                if all_fitness == 0:
-                    i = random.randint(1, population_size)
-                    break
-                d -= (saved_all_snakes[-i - 1].get_fitness() / all_fitness)
-                i += 1
-            i -= 1
-            temp = saved_all_snakes[-i - 1]
-        net = temp.get_net()
-        child = brain.NNet(net)
+        if s <= 0.05: temp = best_1
+        elif 0.05 < s <= 0.1: temp = best_2
+        elif 0.1 < s <= 0.15: temp = best_of_gen_1
+        elif 0.15 < s <= 0.2: temp = best_of_gen_2
+        else: temp = get_random_snake_by_fitness()
+        child = brain.NNet(temp.get_net())
         child.mutate(mutation_rate, mutation_rate2, random_mutate=random_mutate)
         all_snakes.append(child)
 
@@ -428,7 +446,9 @@ def main():
             best_1 = brain.NNet(brain.models.load_model(f"{models_file_path}model_nr_best_of_gen_1.h5", compile=False))
             best_2 = best_1
             for _ in range(population_size):
-                all_snakes.append(brain.NNet(best_1.get_net()))
+                temp = brain.NNet(best_1.get_net())
+                temp.mutate(mutation_rate, mutation_rate2, random_mutate=random_mutate)
+                all_snakes.append(temp)
         else:
             pick_next_gen()
         load_level(canvas, root, l1)

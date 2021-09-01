@@ -19,19 +19,20 @@ start_size = 5
 apple_boost = 1
 input_size = 24
 direction_dict = {0: "left", 1: "top", 2: "right", 3: "bottom"}
-object_dict = {"food": 2, "wall": 0, "body": 1}
+object_dict = {"food": 0, "wall": 2, "body": 1}
 
 
 def create_model():
     model = models.Sequential()
-    initializer = initializers.RandomNormal(mean=0., stddev=(1.0 / math.sqrt(16 / 2)))
-    # initializer = initializers.RandomNormal(mean=0., stddev=1.0)
+    # initializer = initializers.RandomNormal(mean=0., stddev=(1.0 / math.sqrt(16 / 2)))
+    initializer = initializers.RandomNormal(mean=0., stddev=1.0)
     model.add(Dense(16, activation="relu", input_dim=input_size, use_bias=True,
                     kernel_initializer=initializer, bias_initializer="zeros"))
-    model.add(Dense(16, activation="relu", use_bias=True,
+    model.add(Dense(12, activation="relu", use_bias=True,
                     kernel_initializer=initializer, bias_initializer="zeros"))
-    model.add(Dense(4, activation="softmax", use_bias=False,
+    model.add(Dense(4, activation="softmax", use_bias=True,
                     kernel_initializer=initializer))
+    model.build(input_shape=(1, input_size))
     return model
 
 
@@ -53,7 +54,7 @@ class NNet:
         self.dead = False
         self.score = 0
         self.fitness = 0
-        self.step_counter = 0
+        self.step_counter = grid_count * 10
         self.inputs = np.zeros(input_size)
         if net is None:
             self.net = create_model()
@@ -74,18 +75,16 @@ class NNet:
             self.fitness += 1
         elif self.current_direction == 3 and food_y > head_y:
             self.fitness += 1
-        else:
-            self.fitness -= 1
 
     def update(self):
         if not self.dead:
-            self.step_counter += 1
+            self.step_counter -= 1
             if self.step_counter % 10 == 0:
                 self.fitness += 2
 
             self.update_body_pos()
             self.update_head_pos()
-            # self.update_fitness()
+            self.update_fitness()
             self.update_snake_if_food_eaten()
             self.dead_check()
             # self.get_inputs()
@@ -95,7 +94,7 @@ class NNet:
         if self.food_collision(self.snake_body[0].get_x(), self.snake_body[0].get_y()):
             self.add_elements()
             self.food_eaten = True
-            self.step_counter = 0
+            self.step_counter += len(self.snake_body) + grid_count * 2
             self.score += apple_boost
             self.fitness += 100 * apple_boost
 
@@ -146,10 +145,10 @@ class NNet:
         return False
 
     def add_to_inputs_consistent(self, thing, distance, index):
-        self.inputs[index] = -1
-        self.inputs[index + 1] = -1
-        self.inputs[index + 2] = -1
-        self.inputs[index + thing] = distance
+        self.inputs[index] = 0
+        self.inputs[index + 1] = 0
+        self.inputs[index + 2] = distance
+        if thing != object_dict["wall"]: self.inputs[index + thing] = 1
 
     def look_in_direction(self, xx, yy, index):
         x = self.snake_body[0].get_x() + xx
@@ -158,15 +157,17 @@ class NNet:
         # distinguish between body == -1, food == 1 and wall == 0
         while not wall_collision(x, y):
             if self.food_collision(x, y):
-                self.add_to_inputs_consistent(object_dict["food"], (distance / (grid_count - 1)), index)
+                # cannot be one, don't think it matters
+                self.add_to_inputs_consistent(object_dict["food"], 1/distance, index)
                 return distance, object_dict["food"]
             if self.body_collision_excluding_head(x, y):
-                self.add_to_inputs_consistent(object_dict["body"], (distance / (grid_count - 1)), index)
+                self.add_to_inputs_consistent(object_dict["body"], 1/distance, index)
                 return distance, object_dict["body"]
             distance += 1
             x += xx
             y += yy
-        self.add_to_inputs_consistent(object_dict["wall"], (distance / (grid_count - 1)), index)
+        # between 0 and 1
+        self.add_to_inputs_consistent(object_dict["wall"], 1/distance, index)
         return distance, object_dict["wall"]
 
     def surroundings_to_inputs(self, index, draw=False):
@@ -219,11 +220,12 @@ class NNet:
             for j, layer in enumerate(self.net.layers):
                 new_weights_for_layer = []
                 for weight_array in layer.get_weights():
-                    weight_mask = np.random.rand(*weight_array.shape) < rate    # array of true and false
-                    mutation_update = np.random.randn(*weight_array.shape) / 5    # * "opens" the tuple
-                    mutation_update *= weight_mask
-                    weight_array += mutation_update     # add mask to weights
-                    new_weights_for_layer.append(weight_array)
+                    # rand expects non tuple, ones expects tuple
+                    weight_mask = np.random.rand(*weight_array.shape) < rate
+                    weight_mask_opposite = np.ones(weight_array.shape) - weight_mask
+                    mutation_update = np.random.normal(0.0, 1.0, size=weight_array.shape)
+                    new_weights = weight_array * weight_mask_opposite + mutation_update * weight_mask
+                    new_weights_for_layer.append(new_weights)
 
                 self.net.layers[j].set_weights(new_weights_for_layer)
 
@@ -236,6 +238,11 @@ class NNet:
         y = 1 if self.current_direction == 1 else -1 if self.current_direction == 3 else 0
         for i in range(start_size):
             self.create_element(grid_count // 2 + x * i, grid_count // 2 + y * i)
+
+    # still possible that two different snakes are perceived as equal, but it is so unlikely (at time of death),
+    # that it does not matter for the purpose it is necessary for
+    def equals(self, snake2):
+        return np.array_equal(self.inputs, snake2.inputs) and self.fitness == snake2.fitness and self.score == snake2.score
 
     def create_element(self, posx, posy):
         blob1 = Blob(posx, posy, False)
@@ -250,10 +257,10 @@ class NNet:
     def dead_check(self):
         x = self.snake_body[0].get_x()
         y = self.snake_body[0].get_y()
-        if wall_collision(x, y) or self.body_collision_excluding_head(x, y)\
-                or self.step_counter > len(self.snake_body) + grid_count * 4:
+        if wall_collision(x, y) or self.body_collision_excluding_head(x, y) or self.step_counter < 0:
             self.dead = True
         if self.dead:
+            if self.score == 0: self.fitness = 0
             if self.fitness < 0:
                 self.fitness = 0
 
