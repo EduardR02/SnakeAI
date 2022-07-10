@@ -330,5 +330,6 @@ class GeneticAlgorithm:
         assert self.current_population[-1].compare_performance(self.current_population[0]) >= 0
 
     def update_graph(self):
-        self.graph.update_graph([self.best_of_gen[0].score, self.cumulative_fitness])
+        cumulative_score = sum(s.score for s in self.current_population)
+        self.graph.update_graph([self.best_of_gen[0].score, self.cumulative_fitness, cumulative_score])
 
