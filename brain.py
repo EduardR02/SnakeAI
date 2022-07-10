@@ -17,6 +17,7 @@ class Brain:
     mutation_skip_rate = 0.05
     random_mutation_rate_in_interval = False
     crossover_bias = 0.5
+    distrib_mul = 2
     random_crossover_bias = True
     object_dict = {"food": 0, "wall": 2, "body": 1}
 
@@ -52,7 +53,7 @@ class Brain:
             # using the original weights here is necessary obviously, but they are only used for calculation
             for weight_array in layer.get_weights():
                 # rand expects non tuple, ones expects tuple
-                distribution_dev = (1.0 / weight_array.shape[0]) ** 0.5
+                distribution_dev = ((1.0 / weight_array.shape[0]) ** 0.5) * self.distrib_mul
                 mutation_update = np.random.normal(0.0, distribution_dev, size=weight_array.shape)
                 weight_mask = np.random.rand(*weight_array.shape) < rate
                 weight_mask_opposite = np.ones(weight_array.shape) - weight_mask
@@ -73,7 +74,7 @@ class Brain:
             # using the original weights here is necessary obviously, but they are only used for calculation
             for weight_array in layer.get_weights():
                 # rand expects non tuple, ones expects tuple
-                distribution_dev = (1.0 / weight_array.shape[0]) ** 0.5
+                distribution_dev = ((1.0 / weight_array.shape[0]) ** 0.5) * self.distrib_mul
                 mutation_update = np.random.normal(0.0, distribution_dev, size=weight_array.shape)
                 weight_mask = np.random.rand(*weight_array.shape) < rate
                 weight_mask_opposite = np.ones(weight_array.shape) - weight_mask
@@ -118,50 +119,56 @@ class Brain:
 
     def create_model(self):
         model = models.Sequential()
-        # initializer = initializers.RandomNormal(mean=0., stddev=(1.0 / 24.0) ** 0.5)
-        # initializer2 = initializers.RandomNormal(mean=0., stddev=(1.0 / 8.0) ** 0.5)
-        # initializer3 = initializers.RandomNormal(mean=0., stddev=(1.0 / 4.0) ** 0.5)
+        initializer = initializers.RandomNormal(mean=0., stddev=((1.0 / 24.0) ** 0.5) * self.distrib_mul)
+        initializer2 = initializers.RandomNormal(mean=0., stddev=((1.0 / 8.0) ** 0.5) * self.distrib_mul)
+        initializer3 = initializers.RandomNormal(mean=0., stddev=((1.0 / 4.0) ** 0.5) * self.distrib_mul)
         model.add(Dense(8, activation="relu", input_dim=self.input_size, use_bias=self.use_bias,
-                        # kernel_initializer=initializer, bias_initializer="zeros"
+                        kernel_initializer=initializer
                         ))
         """model.add(Dense(8, activation="relu", use_bias=self.use_bias,
-                        kernel_initializer=initializer2, bias_initializer="zeros"))"""
-        model.add(Dense(8, activation="relu", use_bias=self.use_bias,
-                        # kernel_initializer=initializer2, bias_initializer="zeros"
-                        ))
+                        kernel_initializer=initializer2))"""
+        """model.add(Dense(8, activation="relu", use_bias=self.use_bias,
+                        kernel_initializer=initializer2
+                        ))"""
         model.add(Dense(4, activation="softmax", use_bias=self.use_bias,
-                        # kernel_initializer=initializer2
+                        kernel_initializer=initializer2
                         ))
         model.build(input_shape=(1, self.input_size))
         return model
 
     def generate_inputs(self, food_position):
+        self.inputs = np.zeros(self.input_size)     # important, because only non-zero values will be set
         # self.get_direction_input(0) # unnecessary, as surrounding_inputs are enough to figure out direction
-        self.surroundings_to_inputs(0, food_position, draw=False)  # 16 inputs
+        self.surroundings_to_inputs(0, food_position, draw=False)
 
-    def add_to_inputs_consistent(self, thing, distance, index):
+    def add_to_inputs_consistent(self, distance, index):
         normalized_distance = self.normalize_distance(distance)
-        self.inputs[index] = 1. if thing == self.object_dict["food"] else 0.
-        self.inputs[index + 1] = 1. if thing == self.object_dict["body"] else 0.
-        self.inputs[index + 2] = normalized_distance
+        self.inputs[index] = normalized_distance
 
     def look_in_direction(self, delta_point, food_position, index):
         moving_point = self.snake.body[0] + delta_point
+        first_seen = []     # this is not for the neural net, this is for drawing graphics
         distance = 1
-        # distinguish between body == -1, food == 1 and wall == 0
+        body_found = False
+        food_found = False
+        # now it is "see through", meaning all existing inputs in this direction are recorded, even if line of sight is
+        # blocked
         while not utils.is_wall_collision(moving_point):
-            if moving_point == food_position:
-                # cannot be one, don't think it matters
-                self.add_to_inputs_consistent(self.object_dict["food"], distance, index)
-                return distance, self.object_dict["food"]
-            if self.snake.is_point_with_body_collision(moving_point):
-                self.add_to_inputs_consistent(self.object_dict["body"], distance, index)
-                return distance, self.object_dict["body"]
+            if not food_found and moving_point == food_position:
+                self.add_to_inputs_consistent(distance, index + self.object_dict["food"])
+                food_found = True
+                if len(first_seen) == 0:
+                    first_seen = [distance, self.object_dict["food"]]
+            if not body_found and self.snake.is_point_with_body_collision(moving_point):
+                self.add_to_inputs_consistent(distance, index + self.object_dict["body"])
+                body_found = True
+                if len(first_seen) == 0:
+                    first_seen = [distance, self.object_dict["body"]]
             distance += 1
             moving_point += delta_point
 
-        self.add_to_inputs_consistent(self.object_dict["wall"], distance, index)
-        return distance, self.object_dict["wall"]
+        self.add_to_inputs_consistent(distance, index + self.object_dict["wall"])
+        return [distance, self.object_dict["wall"]]
 
     def surroundings_to_inputs(self, index, food_position, draw=False):
         temp = 0
@@ -172,10 +179,10 @@ class Brain:
                     # because delta is 0
                     temp = 1
                     continue
-                distance, thing_found = self.look_in_direction(Point(i - 1, j - 1), food_position,
+                first_found = self.look_in_direction(Point(i - 1, j - 1), food_position,
                                                                (i * 3 + j - temp) * self.inputs_per_direction + index)
                 if draw:
-                    res.append((i, j, distance, thing_found))
+                    res.append((i, j, first_found[0], first_found[1]))
         return res
 
     def get_inputs_around_head(self, food_position, index):

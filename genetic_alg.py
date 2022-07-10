@@ -32,12 +32,9 @@ class GeneticAlgorithm:
         self.current_snake_idx = 0
         self.generation = 1
         self.cumulative_fitness = 0
-        self.adjusted_fitness_sum = 0   # used in selection of next generation
-        self.worst_fitness_in_generation = 0
-        self.fitness_per_move = 1
-        self.base_food_gain = config.grid_count.sum_xy() * 4
+        # self.fitness_per_move = -1
         self.initial_moves = config.grid_count.sum_xy() * 2
-        self.moves_added_on_food = config.grid_count.sum_xy() * 2
+        self.moves_added_on_food = int(config.grid_count.sum_xy() * 1.5)
         self.max_moves = self.initial_moves * 2
         # at the beginning of the generation these should be ordered from big -> small
         self.best_all_time = []
@@ -62,8 +59,6 @@ class GeneticAlgorithm:
         # only call when you have a population
         self.generation = 1
         self.cumulative_fitness = 0
-        self.adjusted_fitness_sum = 0
-        self.worst_fitness_in_generation = 0
         self.graph.reset()
         self.current_snake_idx = 0
         self.generation_has_finished = False
@@ -105,28 +100,22 @@ class GeneticAlgorithm:
 
     def update_current_snake(self):
         self.current_snake.update(self.current_snakes_food_pos)
-        self.current_snake_apply_fitness()
-
-    def current_snake_apply_fitness(self):
-        self.update_snake_fitness()
+        if self.snake_head_on_food():
+            self.update_snake_ate_food()
         if self.current_snake.is_dead:
-            self.update_snake_died()
-        else:
-            if self.snake_head_on_food():
-                self.update_snake_ate_food()
+            self.calculate_snake_fitness()
 
     def update_snake_ate_food(self):
         self.create_new_food()
         self.current_snake.score += self.food_gain_times
-        self.current_snake.fitness += self.base_food_gain * self.food_gain_times
-        self.current_snake.moves_left = max(self.max_moves, self.current_snake.moves_left + self.moves_added_on_food)
+        self.current_snake.moves_left = min(self.max_moves, self.current_snake.moves_left + self.moves_added_on_food)
         self.current_snake.add_length_to_snake(self.food_gain_times)
 
-    def update_snake_died(self):
-        if not self.current_snake.changed_direction_at_least_once:
-            # fitness per move is negative, this is punishment
-            self.current_snake.fitness = 0
-            self.current_snake.score = 0
+    def calculate_snake_fitness(self):
+        curr_score = self.current_snake.score
+        total_moves = self.current_snake.total_moves
+        # exponential / polynomial works nicely to enforce progress, linear is much, much worse
+        self.current_snake.fitness = (2 ** min(curr_score, 10)) * total_moves * ((curr_score + 1) ** 2)
 
     def snake_head_on_food(self):
         return self.current_snake.get_head_position() == self.current_snakes_food_pos
@@ -152,22 +141,9 @@ class GeneticAlgorithm:
     def init_snake_params(self):
         snake.Snake.starting_moves = self.initial_moves
 
-    def update_snake_fitness(self):
-        # basically moves cost fitness, and ofc scaled to grid count
-        self.current_snake.fitness += self.fitness_per_move
-
     def calculate_generations_fitness(self):
         # assumes sorted list
-        self.worst_fitness_in_generation = self.current_population[0].fitness
         self.cumulative_fitness = sum(snake.fitness for snake in self.current_population)
-        self.calculate_adjusted_fitness_sum()
-
-    def calculate_adjusted_fitness_sum(self):
-        if self.worst_fitness_in_generation < 0:
-            # self.worst_fitness_in_generation is negative, therefore minus
-            self.adjusted_fitness_sum = self.cumulative_fitness - self.population_size * self.worst_fitness_in_generation
-        else:
-            self.adjusted_fitness_sum = self.cumulative_fitness
 
     def update_best_snakes_list(self):
         # replace best of all time with best of generation if appropriate
@@ -189,6 +165,7 @@ class GeneticAlgorithm:
     def update_best_of_generation(self):
         # order from best -> worst
         self.best_of_gen = self.current_population[-self.best_snakes_list_length:][::-1]
+        print("GENERATION:", self.generation)
         for best in self.best_of_gen:
             print("SCORE:", best.score, "FITNESS:", best.fitness)
         print("--------------------")
@@ -213,8 +190,6 @@ class GeneticAlgorithm:
         self.current_snake_idx = 0
         self.current_snake = self.current_population[self.current_snake_idx]
         self.cumulative_fitness = 0
-        self.adjusted_fitness_sum = 0
-        self.worst_fitness_in_generation = 0
         self.create_new_food()
 
     def pick_next_generation(self):
@@ -262,9 +237,15 @@ class GeneticAlgorithm:
         new_snakes = []
         picked_snakes = self.pick_dont_remove_dupes(amount_to_pick)
         for picked_snake in picked_snakes:
-            # shallow / deep copy stuff handled in brain. Mutation returns new brain with new model
-            child_model = picked_snake.mutate(self.mutation_rate)
-            child_snake = self.create_new_snake_model_already_generated(child_model)
+            # in case the snake was rly bad have a chance to generate completely new one
+            if picked_snake.score == 0 and random.random() <= 0.25:
+                # either pick a completely new snake or mutate one of the best snakes
+                child_snake = self.create_new_snake()
+            else:
+                # shallow / deep copy stuff handled in brain. Mutation returns new brain with new model
+                child_model = picked_snake.mutate(self.mutation_rate)
+                child_snake = self.create_new_snake_model_already_generated(child_model)
+
             new_snakes.append(child_snake)
         return new_snakes
 
@@ -294,16 +275,11 @@ class GeneticAlgorithm:
         # assumes sorted worst -> best
         d = random.random()
         i = 1
-        value_to_add = 0
-        if self.worst_fitness_in_generation < 0:
-            value_to_add = -self.worst_fitness_in_generation
-        else:
-            assert self.adjusted_fitness_sum == self.cumulative_fitness
         while d > 0:
-            if self.adjusted_fitness_sum <= 0:
+            if self.cumulative_fitness == 0:
                 i = random.randint(1, self.population_size)     # inclusive
                 return -i
-            d -= (self.current_population[-i].fitness + value_to_add) / self.adjusted_fitness_sum
+            d -= self.current_population[-i].fitness / self.cumulative_fitness
             i += 1
             # in case of precision errors
             if i > self.population_size:

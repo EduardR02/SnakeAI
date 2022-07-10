@@ -19,6 +19,7 @@ class Snake:
         self.brain.set_snake(self)
         self.fitness = 0
         self.score = 0
+        self.total_moves = 0
         # body list for simple drawing, knowing where the head and tail is
         self.body = []
         # body set for fast collision lookup, the head shall not be added here
@@ -26,7 +27,6 @@ class Snake:
         self.is_dead = False
         self.current_direction = self.get_random_direction()
         self.moves_left = self.starting_moves
-        self.changed_direction_at_least_once = False
         self.fill_body()
 
     def update(self, food_position):
@@ -39,13 +39,12 @@ class Snake:
 
     def update_moves(self):
         self.moves_left -= 1
+        self.total_moves += 1
 
     def update_direction(self, new_direction):
         # only change direction if it is not the opposite direction
         if self.current_direction == self.direction_dict[self.opposite_direction_dict[self.reverse_direction_dict[new_direction]]]:
             return
-        if self.current_direction != new_direction:
-            self.changed_direction_at_least_once = True
         self.current_direction = new_direction
 
     def mutate(self, rate):
