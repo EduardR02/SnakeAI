@@ -20,6 +20,8 @@ class Snake:
         self.fitness = 0
         self.score = 0
         self.total_moves = 0
+        self.moves_to_food = 0
+        self.moves_to_food_avg = 0.0
         # body list for simple drawing, knowing where the head and tail is
         self.body = []
         # body set for fast collision lookup, the head shall not be added here
@@ -40,6 +42,7 @@ class Snake:
     def update_moves(self):
         self.moves_left -= 1
         self.total_moves += 1
+        self.moves_to_food += 1
 
     def update_direction(self, new_direction):
         # only change direction if it is not the opposite direction

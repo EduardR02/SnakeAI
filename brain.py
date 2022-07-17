@@ -8,7 +8,6 @@ import utils
 
 
 class Brain:
-
     use_bias = False
     directions_to_look = 8
     inputs_per_direction = 3
@@ -17,7 +16,7 @@ class Brain:
     mutation_skip_rate = 0.05
     random_mutation_rate_in_interval = False
     crossover_bias = 0.5
-    distrib_mul = 2
+    distrib_mul = 2.0
     random_crossover_bias = True
     object_dict = {"food": 0, "wall": 2, "body": 1}
 
@@ -120,24 +119,25 @@ class Brain:
     def create_model(self):
         model = models.Sequential()
         initializer = initializers.RandomNormal(mean=0., stddev=((1.0 / 24.0) ** 0.5) * self.distrib_mul)
-        initializer2 = initializers.RandomNormal(mean=0., stddev=((1.0 / 8.0) ** 0.5) * self.distrib_mul)
-        initializer3 = initializers.RandomNormal(mean=0., stddev=((1.0 / 4.0) ** 0.5) * self.distrib_mul)
+        initializer2 = initializers.RandomNormal(mean=0., stddev=((1.0 / 16.0) ** 0.5) * self.distrib_mul)
+        initializer3 = initializers.RandomNormal(mean=0., stddev=((1.0 / 8.0) ** 0.5) * self.distrib_mul)
+        initializer4 = initializers.RandomNormal(mean=0., stddev=((1.0 / 4.0) ** 0.5) * self.distrib_mul)
         model.add(Dense(8, activation="relu", input_dim=self.input_size, use_bias=self.use_bias,
                         kernel_initializer=initializer
                         ))
-        """model.add(Dense(8, activation="relu", use_bias=self.use_bias,
-                        kernel_initializer=initializer2))"""
-        """model.add(Dense(8, activation="relu", use_bias=self.use_bias,
+        model.add(Dense(8, activation="relu", use_bias=self.use_bias,
+                        kernel_initializer=initializer3))
+        """model.add(Dense(4, activation="relu", use_bias=self.use_bias,
                         kernel_initializer=initializer2
                         ))"""
         model.add(Dense(4, activation="softmax", use_bias=self.use_bias,
-                        kernel_initializer=initializer2
+                        kernel_initializer=initializer3
                         ))
         model.build(input_shape=(1, self.input_size))
         return model
 
     def generate_inputs(self, food_position):
-        self.inputs = np.zeros(self.input_size)     # important, because only non-zero values will be set
+        self.inputs = np.zeros(self.input_size)  # important, because only non-zero values will be set
         # self.get_direction_input(0) # unnecessary, as surrounding_inputs are enough to figure out direction
         self.surroundings_to_inputs(0, food_position, draw=False)
 
@@ -147,7 +147,7 @@ class Brain:
 
     def look_in_direction(self, delta_point, food_position, index):
         moving_point = self.snake.body[0] + delta_point
-        first_seen = []     # this is not for the neural net, this is for drawing graphics
+        first_seen = []  # this is not for the neural net, this is for drawing graphics
         distance = 1
         body_found = False
         food_found = False
@@ -180,7 +180,7 @@ class Brain:
                     temp = 1
                     continue
                 first_found = self.look_in_direction(Point(i - 1, j - 1), food_position,
-                                                               (i * 3 + j - temp) * self.inputs_per_direction + index)
+                                                     (i * 3 + j - temp) * self.inputs_per_direction + index)
                 if draw:
                     res.append((i, j, first_found[0], first_found[1]))
         return res
@@ -197,7 +197,8 @@ class Brain:
                     observed_point = self.snake.get_head_position() + Point(i - 1, j - 1)
                     if food_position == observed_point:
                         self.inputs[i * 3 + j - temp + index] = 1
-                    elif utils.is_wall_collision(observed_point) or self.snake.is_point_with_body_collision(observed_point):
+                    elif utils.is_wall_collision(observed_point) or self.snake.is_point_with_body_collision(
+                            observed_point):
                         self.inputs[i * 3 + j - temp + index] = -1
                     else:
                         self.inputs[i * 3 + j - temp + index] = 0
