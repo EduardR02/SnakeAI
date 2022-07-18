@@ -3,6 +3,7 @@ import genetic_alg
 import config
 import controller
 import time
+import replay
 
 
 def main():
@@ -12,11 +13,15 @@ def main():
                                       min_mutation_rate=config.minimum_mutation_rate,
                                       crossover_parents_percent=0.05)
     vis = gui.GUI(ga)
+    player = replay.ReplayPlayer(ga) if config.play_replay else replay.ReplayCollector(ga)
     listener = controller.KeyController()
     listener.start()
     update_counter = 0
     while True:
-        ga.update_cycle()
+        if not config.play_replay:
+            # only do the ga when replay is off
+            ga.update_cycle()
+        player.update()
         if config.no_graphics:
             continue
         update_counter += 1

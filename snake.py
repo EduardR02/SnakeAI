@@ -22,17 +22,21 @@ class Snake:
         self.total_moves = 0
         self.moves_to_food = 0
         self.moves_to_food_avg = 0.0
+        # gamma should be more aggressive if dependent on moves_to_food
+        self.gamma = 1.0 - 1.0 / config.grid_count.sum_xy()
+        self.curr_gamma = 1.0
         # body list for simple drawing, knowing where the head and tail is
         self.body = []
         # body set for fast collision lookup, the head shall not be added here
         self.body_set_without_head = set()
         self.is_dead = False
-        self.current_direction = self.get_random_direction()
+        self.start_direction = self.get_random_direction()
+        self.current_direction = self.start_direction
         self.moves_left = self.starting_moves
         self.fill_body()
 
     def update(self, food_position):
-        new_direction = self.brain.think(food_position)
+        new_direction = self.brain.think(food_position, self.current_direction)
         self.update_direction(new_direction)
         self.move_snake()
         self.update_moves()
@@ -43,6 +47,10 @@ class Snake:
         self.moves_left -= 1
         self.total_moves += 1
         self.moves_to_food += 1
+        self.fitness += self.curr_gamma * (self.score + 1)
+        # only increment gamma if "unnecessary" moves are made
+        if self.moves_to_food > 0:
+            self.curr_gamma *= self.gamma
 
     def update_direction(self, new_direction):
         # only change direction if it is not the opposite direction
@@ -81,6 +89,7 @@ class Snake:
     def fill_body(self):
         assert self.snake_start_size >= 1
         self.body = []
+        self.body_set_without_head = set()
         delta_point = self.get_dx_dy()
         # dx gives direction, but body has to spawn into the OPPOSITE direction
         delta_point = Point(0, 0) - delta_point
@@ -112,6 +121,7 @@ class Snake:
 
     def compare_performance(self, other):
         # return 1 if "better", 0 if "equal" and -1 if "worse"
+        if other is None: return 1
         if self.score > other.score: return 1
         if self.score < other.score: return -1
         if self.fitness > other.fitness: return 1

@@ -36,12 +36,13 @@ class GeneticAlgorithm:
         self.initial_moves = int(config.grid_count.sum_xy() * 3.5)
         self.moves_added_on_food = int(config.grid_count.sum_xy() * 2)
         self.max_moves = int(self.initial_moves * 1.5)
+        self.food_reward = int(config.grid_count.sum_xy() * 5)
         # at the beginning of the generation these should be ordered from big -> small
         self.best_all_time = []
         self.best_of_gen = []
         self.best_snakes_list_length = 2    # minimum 1
         self.graph = graph.Graph(self.population_size, self.generation, config.graph_file_name)
-        self.file_manager = file_manager.FileManager(config.models_file_path)
+        self.file_manager = file_manager.ModelFileManager(config.models_file_path)
         # call these before any snakes are created
         self.init_mutation_params_in_brain()
         self.init_snake_params()
@@ -112,13 +113,23 @@ class GeneticAlgorithm:
         self.current_snake.score += self.food_gain_times
         # important that this step is AFTER score calculation
         self.calculate_snake_moves_to_food_and_avg()
+        self.fitness_update_after_food()
         self.current_snake.moves_left = min(self.max_moves, self.current_snake.moves_left + self.moves_added_on_food)
         self.current_snake.add_length_to_snake(self.food_gain_times)
 
+    def fitness_update_after_food(self):
+        fitness_update = (2 ** min(self.current_snake.score, 10)) * self.current_snake.curr_gamma * self.food_reward
+        self.current_snake.fitness += fitness_update * self.current_snake.score
+        self.current_snake.curr_gamma = 1.0
+
     def calculate_snake_fitness(self):
-        self.fitness_get_food_fast()
+        # self.fitness_get_food_fast()
         # self.fitness_move_much_get_food()
+        self.gamma_fitness()
         # exponential / polynomial works nicely to enforce progress, linear is much, much worse
+
+    def gamma_fitness(self):
+        self.current_snake.fitness = int(self.current_snake.fitness)
 
     def fitness_get_food_fast(self):
         # reward less moves
@@ -188,7 +199,7 @@ class GeneticAlgorithm:
     def update_best_of_generation(self):
         # order from best -> worst
         self.best_of_gen = self.current_population[-self.best_snakes_list_length:][::-1]
-        print("GENERATION:", self.generation)
+        print("GENERATION:", self.generation, "MUTATION RATE:", self.mutation_rate)
         for best in self.best_of_gen:
             print("SCORE:", best.score, "FITNESS:", best.fitness)
         print("--------------------")
@@ -199,7 +210,7 @@ class GeneticAlgorithm:
         self.sort_population()
         self.calculate_generations_fitness()
         self.update_best_snakes_list()
-        if config.save_m:
+        if config.save_m or (config.auto_save and self.was_new_best_set()):
             self.save_models()
         self.update_graph()
         self.pick_next_generation()
@@ -331,6 +342,10 @@ class GeneticAlgorithm:
 
     def update_mutation_rate(self):
         self.mutation_rate = max(self.min_mutation_rate, self.mutation_rate * self.mutation_decay)
+
+    def was_new_best_set(self):
+        # if they refer to the same object, means that a new best was set
+        return self.best_of_gen[0] == self.best_all_time[0]
 
     def sort_population(self):
         # supposed to be smaller -> larger

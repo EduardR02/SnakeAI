@@ -1,3 +1,5 @@
 /switcher.py
 *.png
 models*
+*.npy
+replays*

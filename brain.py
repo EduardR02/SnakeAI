@@ -31,8 +31,8 @@ class Brain:
         # the snake is just needed for input params and collision checking etc.
         self.snake = None
 
-    def think(self, food_position):
-        self.generate_inputs(food_position)
+    def think(self, food_position, current_direction):
+        self.generate_inputs(food_position, current_direction)
         reshaped_inputs = self.inputs.reshape(-1, self.input_size)
         predicted_direction = np.argmax(self.model(reshaped_inputs), axis=-1)[0]
         return predicted_direction
@@ -136,7 +136,7 @@ class Brain:
         model.build(input_shape=(1, self.input_size))
         return model
 
-    def generate_inputs(self, food_position):
+    def generate_inputs(self, food_position, current_direction):
         self.inputs = np.zeros(self.input_size)  # important, because only non-zero values will be set
         # self.get_direction_input(0) # unnecessary, as surrounding_inputs are enough to figure out direction
         self.surroundings_to_inputs(0, food_position, draw=False)
@@ -181,6 +181,21 @@ class Brain:
                     continue
                 first_found = self.look_in_direction(Point(i - 1, j - 1), food_position,
                                                      (i * 3 + j - temp) * self.inputs_per_direction + index)
+                if draw:
+                    res.append((i, j, first_found[0], first_found[1]))
+        return res
+
+    def surrounding_to_inputs_rotate_with_head(self, index, food_position, current_direction, draw=False):
+        temp = 0
+        res = []
+        for i in range(3):
+            for j in range(3):
+                if i == j == 1:
+                    # because delta is 0
+                    temp = 1
+                    continue
+                rotated_index = index + (index + (i * 3 + j - temp) * self.inputs_per_direction + self.inputs_per_direction * current_direction) % self.input_size
+                first_found = self.look_in_direction(Point(i - 1, j - 1), food_position, rotated_index)
                 if draw:
                     res.append((i, j, first_found[0], first_found[1]))
         return res
