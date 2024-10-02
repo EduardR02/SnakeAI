@@ -1,5 +1,7 @@
 /switcher.py
 *.png
+__pycache__*
+.idea*
 models*
 *.npy
 replays*

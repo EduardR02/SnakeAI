@@ -29,7 +29,7 @@ class SimpleForward(nn.Module):
         for param in child.parameters():
             mask = torch.rand_like(param.data) < mutation_rate
             mutation = torch.randn_like(param.data) * mask
-            param.data += mutation * 0.1
+            param.data += mutation
         return child
 
     def crossover(self, other, bias=0.5, deepcopy=False):

@@ -11,7 +11,7 @@ def main():
                                       mutation_decay=config.mutation_rate_decay, random_crossover_bias=True,
                                       mutation_skip_rate=0.1, food_gain_times=config.food_gain_times,
                                       min_mutation_rate=config.minimum_mutation_rate,
-                                      crossover_parents_percent=0.05)
+                                      crossover_parents_percent=0.25)
     vis = gui.GUI(ga)
     player = replay.ReplayPlayer(ga) if config.play_replay else replay.ReplayCollector(ga)
     listener = controller.KeyController()

@@ -64,7 +64,6 @@ class GeneticAlgorithm:
         self.generation_has_finished = False
         self.current_snake = self.current_population[self.current_snake_idx]
         self.create_new_food()
-        self.calculate_snake_moves_to_food_and_avg()
 
     def save_models(self):
         if not config.save_m: return
@@ -88,7 +87,6 @@ class GeneticAlgorithm:
         self.generation_has_finished = False
         self.current_snake = self.current_population[self.current_snake_idx]
         self.create_new_food()
-        self.calculate_snake_moves_to_food_and_avg()
 
     def update_cycle(self):
         if config.load_m:
@@ -109,42 +107,19 @@ class GeneticAlgorithm:
 
     def update_snake_ate_food(self):
         self.create_new_food()
-        mult = 10 if self.current_snake.score >= 10 else 1
+        mult = 5 if self.current_snake.score > 10 else 1
         self.current_snake.score += self.food_gain_times * mult
         # important that this step is AFTER score calculation
-        self.calculate_snake_moves_to_food_and_avg()
         self.fitness_update_after_food()
         self.current_snake.moves_left = min(self.max_moves, self.current_snake.moves_left + self.moves_added_on_food)
         self.current_snake.add_length_to_snake(self.food_gain_times * mult)
 
     def fitness_update_after_food(self):
-        fitness_update = (2 ** min(self.current_snake.score, 10)) * self.current_snake.curr_gamma * self.food_reward
-        self.current_snake.fitness += fitness_update * self.current_snake.score
-        self.current_snake.curr_gamma = 1.0
+        self.current_snake.fitness += self.food_reward * self.food_gain_times
 
     def calculate_snake_fitness(self):
-        # self.fitness_get_food_fast()
-        # self.fitness_move_much_get_food()
-        self.gamma_fitness()
+        self.current_snake.fitness = int(self.current_snake.fitness * (self.current_snake.score * 2 + 1))
         # exponential / polynomial works nicely to enforce progress, linear is much, much worse
-
-    def gamma_fitness(self):
-        self.current_snake.fitness = int(self.current_snake.fitness)
-
-    def fitness_get_food_fast(self):
-        # reward less moves
-        curr_score = self.current_snake.score
-        total_moves = self.current_snake.total_moves
-        moves_to_food_avg = self.current_snake.moves_to_food_avg
-        if curr_score == 0:
-            self.current_snake.fitness = total_moves
-        else:
-            # val between 1.0 and 2.0
-            moves_to_food_avg = (moves_to_food_avg + self.max_moves) / self.max_moves
-            moves_to_food_avg = ((2.0 - moves_to_food_avg) ** 3) * 8
-            moves_to_food_avg = int(2 ** moves_to_food_avg)
-            self.current_snake.fitness = (2 ** min(curr_score, 10)) * moves_to_food_avg * ((curr_score + 1) ** 2)
-            self.current_snake.fitness += int(total_moves ** 1.5)
 
     def fitness_move_much_get_food(self):
         curr_score = self.current_snake.score
@@ -202,6 +177,8 @@ class GeneticAlgorithm:
         print("GENERATION:", self.generation, "MUTATION RATE:", self.mutation_rate)
         for best in self.best_of_gen:
             print("SCORE:", best.score, "FITNESS:", best.fitness)
+        print("CUMULATIVE FITNESS:", self.cumulative_fitness)
+        print("AVG FITNESS:", int(self.cumulative_fitness / self.population_size))
         print("--------------------")
         assert len(self.best_of_gen) == self.best_snakes_list_length
 
@@ -224,7 +201,6 @@ class GeneticAlgorithm:
         self.current_snake = self.current_population[self.current_snake_idx]
         self.cumulative_fitness = 0
         self.create_new_food()
-        self.calculate_snake_moves_to_food_and_avg()
 
     def pick_next_generation(self):
         new_population = self.add_best_to_new_pop()
@@ -325,19 +301,6 @@ class GeneticAlgorithm:
         while self.current_snake.is_point_with_snake_collision(random_point):
             random_point = utils.generate_random_point()
         self.current_snakes_food_pos = random_point
-
-    def calculate_snake_moves_to_food_and_avg(self):
-        assert self.current_snakes_food_pos is not None
-        # negative value of minimum moves to reach food, because each moves +1 value will track "unnecessary" moves
-        moves_to_food = self.current_snakes_food_pos - self.current_snake.get_head_position()
-        moves_to_food = -abs(moves_to_food.x) - abs(moves_to_food.y)
-        if self.current_snake.score > 0:
-            # calc running mean
-            prev_avg = self.current_snake.moves_to_food_avg
-            prev_avg = prev_avg + (1.0 / self.current_snake.score) * (self.current_snake.moves_to_food - prev_avg)
-            self.current_snake.moves_to_food_avg = prev_avg
-        # set moves_to_food to min number of steps to reach food (negative)
-        self.current_snake.moves_to_food = int(moves_to_food)
 
     def update_mutation_rate(self):
         self.mutation_rate = max(self.min_mutation_rate, self.mutation_rate * self.mutation_decay)
