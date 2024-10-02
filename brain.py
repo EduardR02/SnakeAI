@@ -1,10 +1,19 @@
 import random
-import tensorflow.keras.initializers as initializers
-from tensorflow.keras.layers import Dense
-import tensorflow.keras.models as models
 import numpy as np
+
+import config
 from point import Point
 import utils
+import model
+from contextlib import nullcontext
+from torch.amp import autocast
+from torch import float16, from_numpy
+import copy
+
+
+device_type = 'cpu'
+ctx = nullcontext() if device_type == 'cpu' else autocast(device_type=device_type, dtype=float16)
+direction_dict = {"left": 0, "up": 1, "right": 2, "down": 3}
 
 
 class Brain:
@@ -26,16 +35,18 @@ class Brain:
             self.model = ready_model
         else:
             self.model = self.create_model()
-        self.inputs = np.zeros(self.input_size)
+        self.inputs = []
         # the snake shall pass itself to the brain when the snake is created, so the brain will be created with no snake
         # the snake is just needed for input params and collision checking etc.
         self.snake = None
 
     def think(self, food_position, current_direction):
-        self.generate_inputs(food_position, current_direction)
-        reshaped_inputs = self.inputs.reshape(-1, self.input_size)
-        predicted_direction = np.argmax(self.model(reshaped_inputs), axis=-1)[0]
-        return predicted_direction
+        inputs = self.generate_inputs(food_position, current_direction)
+        reshaped_inputs = inputs.reshape(-1, self.input_size).astype(np.float32)
+        reshaped_inputs = from_numpy(reshaped_inputs).to(device_type)
+        with ctx:
+            predicted_move = self.model(reshaped_inputs)    # left, stay, right
+        return (current_direction + (int(predicted_move) - 1)) % 4
 
     def mutate(self, rate):
         """
@@ -45,42 +56,7 @@ class Brain:
             # DO NOT RETURN SHALLOW COPY HERE
             return self.get_model_deep()
         # ONLY ASSIGN ANYTHING TO A NEW MODEL; NEVER ASSIGN A SHALLOW COPY HERE
-        new_model = self.create_model()
-        if self.random_mutation_rate_in_interval: rate *= random.random()  # rate becomes 0 - rate
-        for i, layer in enumerate(self.model.layers):
-            new_weights_for_layer = []
-            # using the original weights here is necessary obviously, but they are only used for calculation
-            for weight_array in layer.get_weights():
-                # rand expects non tuple, ones expects tuple
-                distribution_dev = ((1.0 / weight_array.shape[0]) ** 0.5) * self.distrib_mul
-                mutation_update = np.random.normal(0.0, distribution_dev, size=weight_array.shape)
-                weight_mask = np.random.rand(*weight_array.shape) < rate
-                weight_mask_opposite = np.ones(weight_array.shape) - weight_mask
-                new_weights = weight_array * weight_mask_opposite + mutation_update * weight_mask
-                new_weights_for_layer.append(new_weights)
-            new_model.layers[i].set_weights(new_weights_for_layer)
-        return new_model
-
-    def _shallow_mutate(self, rate):
-        """
-        USE WITH CARE, only when you already created a new model
-        """
-        if random.random() <= self.mutation_skip_rate:
-            return self.get_model_shallow()
-        if self.random_mutation_rate_in_interval: rate *= random.random()  # rate becomes 0 - rate
-        for i, layer in enumerate(self.model.layers):
-            new_weights_for_layer = []
-            # using the original weights here is necessary obviously, but they are only used for calculation
-            for weight_array in layer.get_weights():
-                # rand expects non tuple, ones expects tuple
-                distribution_dev = ((1.0 / weight_array.shape[0]) ** 0.5) * self.distrib_mul
-                mutation_update = np.random.normal(0.0, distribution_dev, size=weight_array.shape)
-                weight_mask = np.random.rand(*weight_array.shape) < rate
-                weight_mask_opposite = np.ones(weight_array.shape) - weight_mask
-                new_weights = weight_array * weight_mask_opposite + mutation_update * weight_mask
-                new_weights_for_layer.append(new_weights)
-            self.model.layers[i].set_weights(new_weights_for_layer)
-        return self.model
+        return self.model.mutate(rate, deepcopy=True)
 
     def crossover(self, other, mutation_rate):
         """
@@ -90,102 +66,71 @@ class Brain:
             bias = random.random()  # how much is taken from one parent over the other
         else:
             bias = self.crossover_bias
-        # create completely new net, to which new values will be assigned, DO NOT ASSIGN A SHALLOW COPY OF PARENTS HERE
-        child1 = self.create_model()
-        child2 = self.create_model()
-        # parent net values SHALL ONLY BE USED FOR CALCULATING THE CHILD WEIGHTS; NEVER ASSIGN TO THEM
-        p1_net = self.get_model_shallow()
-        p2_net = other.get_model_shallow()
-        for i, layer in enumerate(p1_net.layers):
-            child_weights1 = []
-            child_weights2 = []
-            for p, weight_array in enumerate(layer.get_weights()):
-                weight_array2 = p2_net.layers[i].get_weights()[p]
-                # np rand expects non tuple as shape, ones expects tuple as shape
-                weight_mask = np.random.rand(*weight_array.shape) < bias  # array of true and false
-                weight_mask_2 = np.ones(weight_array2.shape) - weight_mask  # this works with true false vals
-                # the children will never have weights from the same parent on the same spot, always opposite
-                new_weights1 = weight_array * weight_mask + weight_array2 * weight_mask_2
-                new_weights2 = weight_array * weight_mask_2 + weight_array2 * weight_mask
-                child_weights1.append(new_weights1)
-                child_weights2.append(new_weights2)
-            child1.layers[i].set_weights(child_weights1)
-            child2.layers[i].set_weights(child_weights2)
-        # mutate children, because a new net already created, we can shallow mutate
-        child1 = Brain(child1)._shallow_mutate(mutation_rate)
-        child2 = Brain(child2)._shallow_mutate(mutation_rate)
-        return child1, child2
+        child1 = self.model.crossover(other.model, bias, deepcopy=True)
+        child2 = self.model.crossover(other.model, 1.0 - bias, deepcopy=True)
+        return child1.mutate(mutation_rate, deepcopy=False), child2.mutate(mutation_rate, deepcopy=False)
 
     def create_model(self):
-        model = models.Sequential()
-        initializer = initializers.RandomNormal(mean=0., stddev=((1.0 / 24.0) ** 0.5) * self.distrib_mul)
-        initializer2 = initializers.RandomNormal(mean=0., stddev=((1.0 / 16.0) ** 0.5) * self.distrib_mul)
-        initializer3 = initializers.RandomNormal(mean=0., stddev=((1.0 / 8.0) ** 0.5) * self.distrib_mul)
-        initializer4 = initializers.RandomNormal(mean=0., stddev=((1.0 / 4.0) ** 0.5) * self.distrib_mul)
-        model.add(Dense(8, activation="relu", input_dim=self.input_size, use_bias=self.use_bias,
-                        kernel_initializer=initializer
-                        ))
-        model.add(Dense(8, activation="relu", use_bias=self.use_bias,
-                        kernel_initializer=initializer3))
-        """model.add(Dense(4, activation="relu", use_bias=self.use_bias,
-                        kernel_initializer=initializer2
-                        ))"""
-        model.add(Dense(4, activation="softmax", use_bias=self.use_bias,
-                        kernel_initializer=initializer3
-                        ))
-        model.build(input_shape=(1, self.input_size))
-        return model
+        net = model.SimpleForward(self.input_size, 3, self.use_bias)
+        return net
 
     def generate_inputs(self, food_position, current_direction):
-        self.inputs = np.zeros(self.input_size)  # important, because only non-zero values will be set
-        # self.get_direction_input(0) # unnecessary, as surrounding_inputs are enough to figure out direction
-        self.surroundings_to_inputs(0, food_position, draw=False)
+        self.inputs = []
+        self.surroundings_to_inputs(food_position, draw=False)
+        self.inputs = self.inputs[:4*self.inputs_per_direction] + self.inputs[5*self.inputs_per_direction:] + self.inputs[4*self.inputs_per_direction:5*self.inputs_per_direction]
+        self.align_to_direction(current_direction)
+        return np.array(self.inputs)
 
-    def add_to_inputs_consistent(self, distance, index):
-        normalized_distance = self.normalize_distance(distance)
-        self.inputs[index] = normalized_distance
+    def align_to_direction(self, current_direction):
+        # * 2 because we also are looking inbetween directions
+        if current_direction == 1:
+            return
+        if current_direction == 0:
+            current_direction = 4
+        rotate_by = ((current_direction - 1) * 2) * self.inputs_per_direction
+        self.inputs = self.inputs[rotate_by:] + self.inputs[:rotate_by]
 
-    def look_in_direction(self, delta_point, food_position, index):
+    def look_in_direction(self, delta_point, food_position):
         moving_point = self.snake.body[0] + delta_point
         first_seen = []  # this is not for the neural net, this is for drawing graphics
         distance = 1
         body_found = False
         food_found = False
+        res = [-1, -1, -1]
         # now it is "see through", meaning all existing inputs in this direction are recorded, even if line of sight is
         # blocked
         while not utils.is_wall_collision(moving_point):
             if not food_found and moving_point == food_position:
-                self.add_to_inputs_consistent(distance, index + self.object_dict["food"])
+                res[self.object_dict["food"]] = self.normalize_distance(distance)
                 food_found = True
                 if len(first_seen) == 0:
                     first_seen = [distance, self.object_dict["food"]]
             if not body_found and self.snake.is_point_with_body_collision(moving_point):
-                self.add_to_inputs_consistent(distance, index + self.object_dict["body"])
+                res[self.object_dict["body"]] = self.normalize_distance(distance)
                 body_found = True
                 if len(first_seen) == 0:
                     first_seen = [distance, self.object_dict["body"]]
             distance += 1
             moving_point += delta_point
 
-        self.add_to_inputs_consistent(distance, index + self.object_dict["wall"])
+        res[self.object_dict["wall"]] = self.normalize_distance(distance)
+        self.inputs += res
         return [distance, self.object_dict["wall"]]
 
-    def surroundings_to_inputs(self, index, food_position, draw=False):
-        temp = 0
+    def surroundings_to_inputs(self, food_position, draw=False):
         res = []
         for i in range(3):
             for j in range(3):
                 if i == j == 1:
                     # because delta is 0
-                    temp = 1
                     continue
-                first_found = self.look_in_direction(Point(i - 1, j - 1), food_position,
-                                                     (i * 3 + j - temp) * self.inputs_per_direction + index)
+                first_found = self.look_in_direction(Point(i - 1, j - 1), food_position)
                 if draw:
                     res.append((i, j, first_found[0], first_found[1]))
         return res
 
     def surrounding_to_inputs_rotate_with_head(self, index, food_position, current_direction, draw=False):
+        # prob wrong
         temp = 0
         res = []
         for i in range(3):
@@ -226,25 +171,14 @@ class Brain:
             else:
                 self.inputs[index + i] = -1
 
-    def get_model_shallow(self):
-        return self.model
-
     def get_model_deep(self):
-        new_model = self.create_model()
-        for i, layer in enumerate(self.model.layers):
-            new_weights_for_layer = []
-            for weight_array in layer.get_weights():
-                # I assume numpy returns a new array here
-                new_weights = weight_array * 1
-                new_weights_for_layer.append(new_weights)
-            new_model.layers[i].set_weights(new_weights_for_layer)
-        return new_model
+        return copy.deepcopy(self.model)
 
     def set_snake(self, snake):
         self.snake = snake
 
     def normalize_distance(self, distance):
-        return 1.0 / distance
+        return (config.grid_size.x - distance) / (config.grid_size.x - 1)
 
     def print_inputs_sub(self, val, arr):
         print(val, "Food:", arr[0], "Distance:", arr[1])

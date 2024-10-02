@@ -1,7 +1,6 @@
 import file_manager
 import graph
 import config
-import tensorflow.keras.backend as K
 import brain
 import snake
 import random
@@ -110,12 +109,13 @@ class GeneticAlgorithm:
 
     def update_snake_ate_food(self):
         self.create_new_food()
-        self.current_snake.score += self.food_gain_times
+        mult = 10 if self.current_snake.score >= 10 else 1
+        self.current_snake.score += self.food_gain_times * mult
         # important that this step is AFTER score calculation
         self.calculate_snake_moves_to_food_and_avg()
         self.fitness_update_after_food()
         self.current_snake.moves_left = min(self.max_moves, self.current_snake.moves_left + self.moves_added_on_food)
-        self.current_snake.add_length_to_snake(self.food_gain_times)
+        self.current_snake.add_length_to_snake(self.food_gain_times * mult)
 
     def fitness_update_after_food(self):
         fitness_update = (2 ** min(self.current_snake.score, 10)) * self.current_snake.curr_gamma * self.food_reward
@@ -206,7 +206,6 @@ class GeneticAlgorithm:
         assert len(self.best_of_gen) == self.best_snakes_list_length
 
     def create_next_generation(self):
-        K.clear_session()
         self.sort_population()
         self.calculate_generations_fitness()
         self.update_best_snakes_list()
