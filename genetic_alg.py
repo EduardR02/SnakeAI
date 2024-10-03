@@ -118,7 +118,7 @@ class GeneticAlgorithm:
         self.current_snake.fitness += self.food_reward * self.food_gain_times
 
     def calculate_snake_fitness(self):
-        self.current_snake.fitness = int(self.current_snake.fitness * (self.current_snake.score * 2 + 1))
+        self.current_snake.fitness = int(self.current_snake.fitness * (self.current_snake.score ** 2 + 1))
         # exponential / polynomial works nicely to enforce progress, linear is much, much worse
 
     def fitness_move_much_get_food(self):
