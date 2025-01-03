@@ -52,6 +52,9 @@ class Point:
         else:
             raise IndexError("key out of range")
 
+    def __repr__(self):
+        return f"({self.x} {self.y})"
+
     def __str__(self):
         return f"{self.x} {self.y}"
 

@@ -36,6 +36,7 @@ class Brain:
         else:
             self.model = self.create_model()
         self.inputs = []
+        self.rotate_for_draw = 0
         # the snake shall pass itself to the brain when the snake is created, so the brain will be created with no snake
         # the snake is just needed for input params and collision checking etc.
         self.snake = None
@@ -75,19 +76,23 @@ class Brain:
         return net
 
     def generate_inputs(self, food_position, current_direction):
+        self.inputs_for_draw = self.inputs
         self.inputs = []
         self.surroundings_to_inputs(food_position, draw=False)
-        self.inputs = self.inputs[:4*self.inputs_per_direction] + self.inputs[5*self.inputs_per_direction:] + self.inputs[4*self.inputs_per_direction:5*self.inputs_per_direction]
+        # self.inputs = self.inputs[:4*self.inputs_per_direction] + self.inputs[5*self.inputs_per_direction:] + self.inputs[4*self.inputs_per_direction:5*self.inputs_per_direction]
         self.align_to_direction(current_direction)
         return np.array(self.inputs)
 
-    def align_to_direction(self, current_direction):
+    def align_to_direction(self, current_direction, arr_to_rotate=None):
         # * 2 because we also are looking inbetween directions
         if current_direction == 1:
-            return
+            return arr_to_rotate
         if current_direction == 0:
             current_direction = 4
         rotate_by = ((current_direction - 1) * 2) * self.inputs_per_direction
+        if arr_to_rotate is not None:
+            return arr_to_rotate[self.rotate_for_draw:] + arr_to_rotate[:self.rotate_for_draw]
+        self.rotate_for_draw = rotate_by // self.inputs_per_direction
         self.inputs = self.inputs[rotate_by:] + self.inputs[:rotate_by]
 
     def look_in_direction(self, delta_point, food_position):
@@ -125,22 +130,6 @@ class Brain:
                     # because delta is 0
                     continue
                 first_found = self.look_in_direction(Point(i - 1, j - 1), food_position)
-                if draw:
-                    res.append((i, j, first_found[0], first_found[1]))
-        return res
-
-    def surrounding_to_inputs_rotate_with_head(self, index, food_position, current_direction, draw=False):
-        # prob wrong
-        temp = 0
-        res = []
-        for i in range(3):
-            for j in range(3):
-                if i == j == 1:
-                    # because delta is 0
-                    temp = 1
-                    continue
-                rotated_index = index + (index + (i * 3 + j - temp) * self.inputs_per_direction + self.inputs_per_direction * current_direction) % self.input_size
-                first_found = self.look_in_direction(Point(i - 1, j - 1), food_position, rotated_index)
                 if draw:
                     res.append((i, j, first_found[0], first_found[1]))
         return res
