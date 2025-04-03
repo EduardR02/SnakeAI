@@ -11,7 +11,7 @@ class Replay:
     def __init__(self, ga):
         self.ga = ga
         self.replay_dir = config.replay_dir + config.sub_replay_dir
-        self.file_manager = file_manager.ReplayFileManager(self.replay_dir)
+        self.file_manager = file_manager.ReplayFileManager(self.replay_dir, self.replay_dir)
         self.current_snake = None
         self.current_moves = []
         self.current_food = []

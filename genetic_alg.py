@@ -44,7 +44,7 @@ class GeneticAlgorithm:
         self.best_of_gen = []
         self.best_snakes_list_length = 2    # minimum 1
         self.graph = graph.Graph(self.population_size, self.generation, config.graph_file_name)
-        self.file_manager = file_manager.ModelFileManager(config.models_file_path)
+        self.file_manager = file_manager.ModelFileManager(config.model_save_dir, config.model_load_dir)
         # call these before any snakes are created
         self.init_mutation_params_in_brain()
         self.init_snake_params()
@@ -112,7 +112,7 @@ class GeneticAlgorithm:
 
     def update_snake_ate_food(self):
         self.create_new_food()
-        mult = 5 if self.current_snake.score >= 0 else 1
+        mult = 1 if self.current_snake.score >= 0 else 1
         self.current_snake.score += self.food_gain_times * mult
         # important that this step is AFTER score calculation
         self.fitness_update_after_food()
