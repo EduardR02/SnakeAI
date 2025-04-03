@@ -26,6 +26,7 @@ class Brain:
     random_mutation_rate_in_interval = False
     crossover_bias = 0.5
     distrib_mul = 2.0
+    max_size = max(config.grid_size.x, config.grid_size.y)
     random_crossover_bias = True
     object_dict = {"food": 0, "wall": 2, "body": 1}
 
@@ -37,7 +38,6 @@ class Brain:
             self.model = self.create_model()
         self.model.to(device_type).eval()
         self.inputs = []
-        self.rotate_for_draw = 0
         # the snake shall pass itself to the brain when the snake is created, so the brain will be created with no snake
         # the snake is just needed for input params and collision checking etc.
         self.snake = None
@@ -78,28 +78,24 @@ class Brain:
         return net
 
     def generate_inputs(self, food_position, current_direction):
-        self.inputs_for_draw = self.inputs
         self.inputs = []
-        self.surroundings_to_inputs(food_position, draw=False)
+        self.surroundings_to_inputs(food_position)
+        self.inputs_for_draw = self.inputs
         # self.inputs = self.inputs[:4*self.inputs_per_direction] + self.inputs[5*self.inputs_per_direction:] + self.inputs[4*self.inputs_per_direction:5*self.inputs_per_direction]
         self.align_to_direction(current_direction)
         return np.array(self.inputs)
 
-    def align_to_direction(self, current_direction, arr_to_rotate=None):
+    def align_to_direction(self, current_direction):
         # * 2 because we also are looking inbetween directions
         if current_direction == 1:
-            return arr_to_rotate
+            return
         if current_direction == 0:
             current_direction = 4
         rotate_by = ((current_direction - 1) * 2) * self.inputs_per_direction
-        if arr_to_rotate is not None:
-            return arr_to_rotate[self.rotate_for_draw:] + arr_to_rotate[:self.rotate_for_draw]
-        self.rotate_for_draw = rotate_by // self.inputs_per_direction
         self.inputs = self.inputs[rotate_by:] + self.inputs[:rotate_by]
 
     def look_in_direction(self, delta_point, food_position):
         moving_point = self.snake.body[0] + delta_point
-        first_seen = []  # this is not for the neural net, this is for drawing graphics
         distance = 1
         body_found = False
         food_found = False
@@ -108,33 +104,24 @@ class Brain:
         # blocked
         while not utils.is_wall_collision(moving_point):
             if not food_found and moving_point == food_position:
-                res[self.object_dict["food"]] = self.normalize_distance(distance)
+                res[self.object_dict["food"]] = 1 if distance == 1 else self.normalize_distance(distance) * (- 1)
                 food_found = True
-                if len(first_seen) == 0:
-                    first_seen = [distance, self.object_dict["food"]]
             if not body_found and self.snake.is_point_with_body_collision(moving_point):
                 res[self.object_dict["body"]] = 1 if distance == 1 else self.normalize_distance(distance) * (- 1)
                 body_found = True
-                if len(first_seen) == 0:
-                    first_seen = [distance, self.object_dict["body"]]
             distance += 1
             moving_point += delta_point
 
         res[self.object_dict["wall"]] = 1 if distance == 1 else self.normalize_distance(distance) * (- 1)
         self.inputs += res
-        return [distance, self.object_dict["wall"]]
 
-    def surroundings_to_inputs(self, food_position, draw=False):
-        res = []
+    def surroundings_to_inputs(self, food_position):
         for i in range(3):
             for j in range(3):
                 if i == j == 1:
                     # because delta is 0
                     continue
-                first_found = self.look_in_direction(Point(i - 1, j - 1), food_position)
-                if draw:
-                    res.append((i, j, first_found[0], first_found[1]))
-        return res
+                self.look_in_direction(Point(i - 1, j - 1), food_position)
 
     def get_inputs_around_head(self, food_position, index):
         temp = 0
@@ -169,7 +156,10 @@ class Brain:
         self.snake = snake
 
     def normalize_distance(self, distance):
-        return (config.grid_size.x - distance) / (config.grid_size.x - 1)
+        return (self.max_size - distance) / (self.max_size - 1)
+    
+    def inverse_normalize_distance(self, normalized_distance):
+        return self.max_size - normalized_distance * (self.max_size - 1)
 
     def print_inputs_sub(self, val, arr):
         print(val, "Food:", arr[0], "Distance:", arr[1])

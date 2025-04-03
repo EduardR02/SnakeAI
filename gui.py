@@ -51,16 +51,17 @@ class GUI:
 
     def draw_all_lines(self):
         head = self.snake_rects[0].grid_pos
-        inputs = self.ga.current_snake.brain.inputs
+        # whatever just redo the work, we are out of sync due to gui update immediately after thinking, meaning one step behind
+        self.ga.current_snake.brain.generate_inputs(self.ga.current_snakes_food_pos, self.ga.current_snake.current_direction)
+        inputs = self.ga.current_snake.brain.inputs_for_draw
         if not inputs or not self.ga.current_snake or self.ga.current_snake.is_dead:
             return
         dxdy = [Point(x, y) for x in range(3) for y in range(3) if not (x == y == 1)]
-        rotated_dxdy = self.ga.current_snake.brain.align_to_direction(-1, dxdy)
-        for i, dx_dy in enumerate(rotated_dxdy):
+        for i, dx_dy in enumerate(dxdy):
             self.lines.append(line.Line(head, config.line_color))
             idx = i * 3
-            closest = max(inputs[idx], inputs[idx+1], inputs[idx+2])
-            self.lines[-1].create_line((dx_dy.x, dx_dy.y, closest, 0 if closest == inputs[idx] else 1))
+            closest = max(abs(inputs[idx]), abs(inputs[idx+1]), abs(inputs[idx+2]))
+            self.lines[-1].create_line((dx_dy.x, dx_dy.y, closest, 0 if closest == abs(inputs[idx]) else 1))
 
     def remove_all_lines(self):
         for line in self.lines:
