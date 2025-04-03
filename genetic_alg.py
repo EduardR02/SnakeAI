@@ -6,6 +6,7 @@ import snake
 import random
 import utils
 from functools import cmp_to_key
+import numpy as np
 
 
 class GeneticAlgorithm:
@@ -31,6 +32,8 @@ class GeneticAlgorithm:
         self.current_snake_idx = 0
         self.generation = 1
         self.cumulative_fitness = 0
+        self.food_creator = np.arange(config.grid_count.mul_self())
+        self.food_creator_idx = 0
         # self.fitness_per_move = -1
         self.initial_moves = int(config.grid_count.sum_xy() * 3.5)
         self.moves_added_on_food = int(config.grid_count.sum_xy() * 2)
@@ -86,6 +89,8 @@ class GeneticAlgorithm:
             return
         self.generation_has_finished = False
         self.current_snake = self.current_population[self.current_snake_idx]
+        np.random.shuffle(self.food_creator)
+        self.food_creator_idx = 0
         self.create_new_food()
 
     def update_cycle(self):
@@ -107,7 +112,7 @@ class GeneticAlgorithm:
 
     def update_snake_ate_food(self):
         self.create_new_food()
-        mult = 5 if self.current_snake.score > 10 else 1
+        mult = 5 if self.current_snake.score >= 0 else 1
         self.current_snake.score += self.food_gain_times * mult
         # important that this step is AFTER score calculation
         self.fitness_update_after_food()
@@ -295,12 +300,20 @@ class GeneticAlgorithm:
         return i
 
     def create_new_food(self):
-        # inefficient when snake covers most of the grids
         assert self.current_snake is not None
-        random_point = utils.generate_random_point()
-        while self.current_snake.is_point_with_snake_collision(random_point):
-            random_point = utils.generate_random_point()
+        grid_max = config.grid_count.mul_self()
+        random_point = None
+        for _ in range(grid_max):
+            index = self.food_creator[self.food_creator_idx % grid_max]
+            self.food_creator_idx += 1
+            random_point = utils.get_point(index % config.grid_count.x, index // config.grid_count.y)
+            if not self.current_snake.is_point_with_snake_collision(random_point):
+                self.current_snakes_food_pos = random_point
+                return
+        # just in case if the snake is the exact size of the grid world it could continue indefinetly, so we place a food anywhere such that as soon as the snake eats it it will die
+        # even then it should die from lack of moves after some time but this is funny, extra high score!
         self.current_snakes_food_pos = random_point
+        
 
     def update_mutation_rate(self):
         self.mutation_rate = max(self.min_mutation_rate, self.mutation_rate * self.mutation_decay)

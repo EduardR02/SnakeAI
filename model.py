@@ -12,8 +12,8 @@ class SimpleForward(nn.Module):
         self.eval()
 
     def forward(self, x):
-        x = nn.functional.relu(self.forward_1(x))
-        x = nn.functional.relu(self.forward_2(x))
+        x = nn.functional.sigmoid(self.forward_1(x))
+        x = nn.functional.sigmoid(self.forward_2(x))
         return nn.functional.softmax(self.out(x), dim=-1).argmax(dim=-1)
 
     def save(self, path):

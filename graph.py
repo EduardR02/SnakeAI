@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import gc
 
 
 class Graph:
@@ -42,7 +43,8 @@ class Graph:
         plt.title("Snake Neural Network")
         ax1.set_facecolor(self.background_color)
         plt.savefig(self.filename, bbox_inches="tight")
-        plt.close("all")
+        plt.clf()
+        gc.collect()
 
     def reset(self):
         self.best_of_gens_list = []

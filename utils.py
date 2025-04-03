@@ -9,3 +9,6 @@ def is_wall_collision(point):
 
 def generate_random_point():
     return Point(random.randint(0, config.grid_count.x - 1), random.randint(0, config.grid_count.y - 1))
+
+def get_point(x, y):
+    return Point(int(x), int(y))

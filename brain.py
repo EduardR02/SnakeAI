@@ -7,7 +7,7 @@ import utils
 import model
 from contextlib import nullcontext
 from torch.amp import autocast
-from torch import float16, from_numpy
+from torch import float16, from_numpy, no_grad
 import copy
 
 
@@ -35,12 +35,14 @@ class Brain:
             self.model = ready_model
         else:
             self.model = self.create_model()
+        self.model.to(device_type).eval()
         self.inputs = []
         self.rotate_for_draw = 0
         # the snake shall pass itself to the brain when the snake is created, so the brain will be created with no snake
         # the snake is just needed for input params and collision checking etc.
         self.snake = None
 
+    @no_grad()
     def think(self, food_position, current_direction):
         inputs = self.generate_inputs(food_position, current_direction)
         reshaped_inputs = inputs.reshape(-1, self.input_size).astype(np.float32)
@@ -101,7 +103,7 @@ class Brain:
         distance = 1
         body_found = False
         food_found = False
-        res = [-1, -1, -1]
+        res = [0, 0, 0]
         # now it is "see through", meaning all existing inputs in this direction are recorded, even if line of sight is
         # blocked
         while not utils.is_wall_collision(moving_point):
@@ -111,14 +113,14 @@ class Brain:
                 if len(first_seen) == 0:
                     first_seen = [distance, self.object_dict["food"]]
             if not body_found and self.snake.is_point_with_body_collision(moving_point):
-                res[self.object_dict["body"]] = self.normalize_distance(distance)
+                res[self.object_dict["body"]] = 1 if distance == 1 else self.normalize_distance(distance) * (- 1)
                 body_found = True
                 if len(first_seen) == 0:
                     first_seen = [distance, self.object_dict["body"]]
             distance += 1
             moving_point += delta_point
 
-        res[self.object_dict["wall"]] = self.normalize_distance(distance)
+        res[self.object_dict["wall"]] = 1 if distance == 1 else self.normalize_distance(distance) * (- 1)
         self.inputs += res
         return [distance, self.object_dict["wall"]]
 

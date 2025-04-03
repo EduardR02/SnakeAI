@@ -60,6 +60,9 @@ class Point:
 
     def sum_xy(self):
         return self.x + self.y
+    
+    def mul_self(self):
+        return self.x * self.y
 
     def manhattan_distance(self, other):
         return abs(self.x - other.x) + abs(self.y - other.y)
