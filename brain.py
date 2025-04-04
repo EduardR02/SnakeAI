@@ -104,7 +104,7 @@ class Brain:
         # blocked
         while not utils.is_wall_collision(moving_point):
             if not food_found and moving_point == food_position:
-                res[self.object_dict["food"]] = 1 if distance == 1 else self.normalize_distance(distance) * (- 1)
+                res[self.object_dict["food"]] = self.normalize_distance(distance)
                 food_found = True
             if not body_found and self.snake.is_point_with_body_collision(moving_point):
                 res[self.object_dict["body"]] = 1 if distance == 1 else self.normalize_distance(distance) * (- 1)
