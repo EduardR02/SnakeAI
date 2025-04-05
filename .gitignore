@@ -1,5 +1,5 @@
 *.png
-!images/showcase_graph.png
+!images/*
 __pycache__*
 .idea*
 models*

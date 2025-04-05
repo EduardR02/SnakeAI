@@ -35,9 +35,9 @@ class GeneticAlgorithm:
         self.food_creator = np.arange(config.grid_count.mul_self())
         self.food_creator_idx = 0
         # self.fitness_per_move = -1
-        self.initial_moves = int(config.grid_count.sum_xy() * 3.5)
+        self.initial_moves = int(config.grid_count.sum_xy())
         self.moves_added_on_food = int(config.grid_count.sum_xy() * 2)
-        self.max_moves = int(self.initial_moves * 1.5)
+        self.max_moves = config.grid_count.mul_self()
         self.food_reward = int(config.grid_count.sum_xy() * 5)
         # at the beginning of the generation these should be ordered from big -> small
         self.best_all_time = []
@@ -116,7 +116,7 @@ class GeneticAlgorithm:
         self.current_snake.score += self.food_gain_times * mult
         # important that this step is AFTER score calculation
         self.fitness_update_after_food()
-        self.current_snake.moves_left = min(self.max_moves, self.current_snake.moves_left + self.moves_added_on_food)
+        self.current_snake.moves_left = min(self.max_moves, self.current_snake.get_len() + self.current_snake.moves_left + self.moves_added_on_food)
         self.current_snake.add_length_to_snake(self.food_gain_times * mult)
 
     def fitness_update_after_food(self):

@@ -74,3 +74,7 @@ Furthermore, thanks to the relative and rotated input encoding, a model trained 
 
 1.  Train on a small grid (e.g., 10x10) where the self-trapping complexity barrier is reached relatively quickly.
 2.  Once converged, transfer the same trained model to a larger grid. It should perform well immediately and require significantly less training time to fully adapt compared to training on the large grid from scratch.
+
+### Using models that solved 10x10 to init 20x20
+
+![Evolution for a population of 500 snakes in a 10x10 grid](images/20x20_transfer.png)

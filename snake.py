@@ -157,3 +157,6 @@ class Snake:
 
     def reset(self, new_brain=None):
         self.__init__(new_brain or self.brain)
+
+    def get_len(self):
+        return len(self.body) + 1
