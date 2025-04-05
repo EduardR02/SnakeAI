@@ -105,6 +105,6 @@ class ReplayPlayer(Replay):
             prev_food = Point(int(self.current_food[self.curr_index - 1][0]),
                               int(self.current_food[self.curr_index - 1][1]))
             if self.current_snake.get_head_position() == prev_food:
-                mult = 5 if self.current_snake.score >= 0 else 1
+                mult = 1 if self.current_snake.score >= 0 else 1    # adjust this to be the same as in genetic_alg.py
                 self.current_snake.score += config.food_gain_times * mult
                 self.current_snake.add_length_to_snake(config.food_gain_times * mult)

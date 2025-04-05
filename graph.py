@@ -43,7 +43,7 @@ class Graph:
         plt.title("Snake Neural Network")
         ax1.set_facecolor(self.background_color)
         plt.savefig(self.filename, bbox_inches="tight")
-        plt.clf()
+        plt.clf()   # plt.close() crashes the whole thing on mac
         gc.collect()
 
     def reset(self):

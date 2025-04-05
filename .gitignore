@@ -1,7 +1,9 @@
-/switcher.py
 *.png
+!images/showcase_graph.png
 __pycache__*
 .idea*
 models*
+.venv*
 *.npy
 replays*
+.DS_STORE*

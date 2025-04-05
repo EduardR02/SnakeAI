@@ -7,13 +7,13 @@ class SimpleForward(nn.Module):
     def __init__(self, in_channels, out_classes, bias=True):
         super(SimpleForward, self).__init__()
         self.forward_1 = nn.Linear(in_channels, 24, bias=bias)
-        self.forward_2 = nn.Linear(24, 24, bias=bias)
+        #self.forward_2 = nn.Linear(24, 24, bias=bias)
         self.out = nn.Linear(24, out_classes, bias=bias)
         self.eval()
 
     def forward(self, x):
-        x = nn.functional.sigmoid(self.forward_1(x))
-        x = nn.functional.sigmoid(self.forward_2(x))
+        x = nn.functional.relu(self.forward_1(x))
+        #x = nn.functional.relu(self.forward_2(x))
         return nn.functional.softmax(self.out(x), dim=-1).argmax(dim=-1)
 
     def save(self, path):
