@@ -20,7 +20,7 @@ class Brain:
     use_bias = False
     directions_to_look = 8
     inputs_per_direction = 3
-    input_size = directions_to_look * inputs_per_direction
+    input_size = directions_to_look * inputs_per_direction + 2
     # next 4 values will be overwritten by the Genetic Algorithm class
     mutation_skip_rate = 0.05
     random_mutation_rate_in_interval = False
@@ -81,8 +81,8 @@ class Brain:
         self.inputs = []
         self.surroundings_to_inputs(food_position)
         self.inputs_for_draw = self.inputs
-        # self.inputs = self.inputs[:4*self.inputs_per_direction] + self.inputs[5*self.inputs_per_direction:] + self.inputs[4*self.inputs_per_direction:5*self.inputs_per_direction]
         self.align_to_direction(current_direction)
+        self.inputs += [self.snake.get_len() / config.grid_count.mul_self(), self.snake.moves_left / config.grid_count.mul_self()]
         return np.array(self.inputs)
 
     def align_to_direction(self, current_direction):
@@ -123,24 +123,6 @@ class Brain:
                     continue
                 self.look_in_direction(Point(i - 1, j - 1), food_position)
 
-    def get_inputs_around_head(self, food_position, index):
-        temp = 0
-        for i in range(3):
-            for j in range(3):
-                if i == j == 1:
-                    # because this is head position
-                    temp = 1
-                    continue
-                else:
-                    observed_point = self.snake.get_head_position() + Point(i - 1, j - 1)
-                    if food_position == observed_point:
-                        self.inputs[i * 3 + j - temp + index] = 1
-                    elif utils.is_wall_collision(observed_point) or self.snake.is_point_with_body_collision(
-                            observed_point):
-                        self.inputs[i * 3 + j - temp + index] = -1
-                    else:
-                        self.inputs[i * 3 + j - temp + index] = 0
-
     def get_direction_input(self, index):
         # as of python 3.7 dictionaries are guaranteed to be ordered, therefore this works
         for i, value in enumerate(self.snake.direction_dict.values()):
@@ -160,14 +142,3 @@ class Brain:
     
     def inverse_normalize_distance(self, normalized_distance):
         return self.max_size - normalized_distance * (self.max_size - 1)
-
-    def print_inputs_sub(self, val, arr):
-        print(val, "Food:", arr[0], "Distance:", arr[1])
-
-    def print_inputs(self):
-        print("Direction:", self.snake.direction_dict.get(int(np.argmax(self.inputs[:4], axis=-1))))
-        vals = {0: "left-top", 1: "left", 2: "left-bottom", 3: "top", 4: "bottom",
-                5: "right-top", 6: "right", 7: "right-bottom"}
-        for i in range(8):
-            self.print_inputs_sub("Vision, " + vals[i] + ":", self.inputs[4 + i * 2: 7 + i * 2])
-        print("------------------------------------------------------------")

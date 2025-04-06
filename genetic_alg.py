@@ -120,7 +120,7 @@ class GeneticAlgorithm:
         self.current_snake.add_length_to_snake(self.food_gain_times * mult)
 
     def fitness_update_after_food(self):
-        self.current_snake.fitness += self.food_reward * self.food_gain_times
+        self.current_snake.fitness += self.food_reward * self.food_gain_times + self.current_snake.moves_left // 2
 
     def calculate_snake_fitness(self):
         self.current_snake.fitness = int(self.current_snake.fitness * (self.current_snake.score ** 2 + 1))

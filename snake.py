@@ -33,8 +33,8 @@ class Snake:
     def update(self, food_position):
         new_direction = self.brain.think(food_position, self.current_direction)
         self.update_direction(new_direction)
-        moving_towards_food = self.moving_towards_food(food_position)
-        self.update_fitness(moving_towards_food)
+        # moving_towards_food = self.moving_towards_food(food_position)
+        # self.update_fitness(moving_towards_food)
         self.move_snake()
         self.update_moves()
         # is dead check comes last

@@ -17,6 +17,7 @@ def main():
     listener = controller.KeyController()
     listener.start()
     update_counter = 0
+    if config.play_replay: config.no_graphics = False
     while True:
         if not config.play_replay:
             # only do the ga when replay is off
